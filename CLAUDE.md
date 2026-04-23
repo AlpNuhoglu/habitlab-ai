@@ -73,7 +73,7 @@ If a decision is not specified in the doc, say so and propose an option rather t
 
 Track which WP is active. Check the box when a WP is done and the project ships a working increment.
 
-- [ ] **WP1** — Repo scaffolding, docker-compose, CI pipeline green on empty test.
+- [x] **WP1** — Repo scaffolding, docker-compose, CI pipeline green on empty test.
 - [ ] **WP2** — Auth: register, verify, login, refresh, logout, password reset.
 - [ ] **WP3** — Habit CRUD + daily tracking + basic dashboard (synchronous aggregation).
 - [ ] **WP4** — Event log with partitioning, outbox publisher, broker abstraction.

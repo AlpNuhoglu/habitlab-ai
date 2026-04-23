@@ -1,0 +1,30 @@
+{
+  "name": "habitlab-ai",
+  "private": true,
+  "version": "0.1.0",
+  "description": "HabitLab AI — AI-driven behavior optimization platform. Portfolio project by Alp Nuhoğlu.",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter=!worker dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "db:up": "docker compose up -d postgres redis",
+    "db:down": "docker compose down",
+    "db:logs": "docker compose logs -f postgres",
+    "db:psql": "docker compose exec postgres psql -U habitlab -d habitlab_dev",
+    "db:reset": "docker compose down -v && docker compose up -d postgres redis",
+    "migrate": "pnpm --filter backend migrate",
+    "migrate:create": "pnpm --filter backend migrate:create",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\""
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3",
+    "typescript": "^5.5.4"
+  }
+}

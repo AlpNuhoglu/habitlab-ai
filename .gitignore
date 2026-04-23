@@ -1,0 +1,45 @@
+# ── Dependencies ─────────────────────────────────────────────────────────────
+node_modules/
+.pnpm-store/
+
+# ── Environment ──────────────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ── Build output ─────────────────────────────────────────────────────────────
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# ── Logs ────────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── Editor / OS ─────────────────────────────────────────────────────────────
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# ── Testing / Coverage ──────────────────────────────────────────────────────
+coverage/
+.nyc_output/
+*.lcov
+
+# ── Docker-mounted volumes (should live in named volumes, not bind mounts) ──
+postgres_data/
+redis_data/
+
+# ── Misc ────────────────────────────────────────────────────────────────────
+*.pem
+.cache/
+.turbo/

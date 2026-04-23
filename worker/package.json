@@ -1,0 +1,12 @@
+{
+  "name": "worker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Worker tier placeholder. Workers run in the backend process in the MVP; this package exists so that splitting them into a standalone process (later) is a rename, not a restructure.",
+  "scripts": {
+    "dev": "echo 'Workers currently run inside backend process. See CLAUDE.md.' && exit 0",
+    "test": "echo 'no tests yet' && exit 0",
+    "lint": "echo 'no code yet' && exit 0",
+    "typecheck": "echo 'no code yet' && exit 0"
+  }
+}

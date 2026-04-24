@@ -16,6 +16,14 @@ import { DataSource } from 'typeorm';
 
 import { AppModule } from '../src/app.module';
 
+// set-cookie is string | string[] | undefined in Node's IncomingMessage.
+function getCookies(res: { headers: Record<string, unknown> }): string[] {
+  const raw = res.headers['set-cookie'];
+  if (Array.isArray(raw)) return raw as string[];
+  if (typeof raw === 'string') return [raw];
+  return [];
+}
+
 // Unique email per test run so re-runs don't collide.
 const RUN = Date.now();
 const email = (suffix: string) => `e2e+${RUN}+${suffix}@example.com`;
@@ -49,10 +57,7 @@ async function registerAndVerify(
   );
   const verifyToken: string = rows[0]?.email_verification_token ?? '';
 
-  await request(app.getHttpServer())
-    .get('/auth/verify')
-    .query({ token: verifyToken })
-    .expect(200);
+  await request(app.getHttpServer()).get('/auth/verify').query({ token: verifyToken }).expect(200);
 
   return { userId, verifyToken };
 }
@@ -66,9 +71,7 @@ describe('Auth (e2e)', () => {
     }).compile();
 
     app = moduleRef.createNestApplication();
-    app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }),
-    );
+    app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }));
     app.use(cookieParser());
     await app.init();
   });
@@ -88,10 +91,9 @@ describe('Auth (e2e)', () => {
     expect((res.body as { userId: string }).userId).toBeDefined();
 
     const ds = app.get(DataSource);
-    const rows: Array<{ id: string }> = await ds.query(
-      'SELECT id FROM users WHERE email = $1',
-      [email('reg1')],
-    );
+    const rows: Array<{ id: string }> = await ds.query('SELECT id FROM users WHERE email = $1', [
+      email('reg1'),
+    ]);
     expect(rows).toHaveLength(1);
   });
 
@@ -167,7 +169,7 @@ describe('Auth (e2e)', () => {
       .send({ email: email('login1'), password: 'Password1' })
       .expect(200);
 
-    const setCookies: string[] = res.headers['set-cookie'] as string[];
+    const setCookies = getCookies(res);
     expect(setCookies.some((c) => c.startsWith('access_token='))).toBe(true);
     expect(setCookies.some((c) => c.startsWith('refresh_token='))).toBe(true);
     expect(setCookies.every((c) => c.includes('HttpOnly'))).toBe(true);
@@ -183,21 +185,18 @@ describe('Auth (e2e)', () => {
       .send({ email: email('refresh1'), password: 'Password1' })
       .expect(200);
 
-    const cookies: string[] = loginRes.headers['set-cookie'] as string[];
+    const cookies = getCookies(loginRes);
 
     const refreshRes = await request(app.getHttpServer())
       .post('/auth/refresh')
       .set('Cookie', cookies)
       .expect(200);
 
-    const newCookies: string[] = refreshRes.headers['set-cookie'] as string[];
+    const newCookies = getCookies(refreshRes);
     expect(newCookies.some((c) => c.startsWith('access_token='))).toBe(true);
 
     // Old refresh token must now be rejected
-    await request(app.getHttpServer())
-      .post('/auth/refresh')
-      .set('Cookie', cookies)
-      .expect(401);
+    await request(app.getHttpServer()).post('/auth/refresh').set('Cookie', cookies).expect(401);
   });
 
   it('9. refresh with revoked token → 401 + chain revocation', async () => {
@@ -208,19 +207,13 @@ describe('Auth (e2e)', () => {
       .send({ email: email('refresh2'), password: 'Password1' })
       .expect(200);
 
-    const cookies: string[] = loginRes.headers['set-cookie'] as string[];
+    const cookies = getCookies(loginRes);
 
     // Rotate once (legitimate)
-    await request(app.getHttpServer())
-      .post('/auth/refresh')
-      .set('Cookie', cookies)
-      .expect(200);
+    await request(app.getHttpServer()).post('/auth/refresh').set('Cookie', cookies).expect(200);
 
     // Reuse the original (now-revoked) token — triggers chain revocation
-    await request(app.getHttpServer())
-      .post('/auth/refresh')
-      .set('Cookie', cookies)
-      .expect(401);
+    await request(app.getHttpServer()).post('/auth/refresh').set('Cookie', cookies).expect(401);
   });
 
   // ─── FR-005 Logout ──────────────────────────────────────────────────────────
@@ -233,21 +226,17 @@ describe('Auth (e2e)', () => {
       .send({ email: email('logout1'), password: 'Password1' })
       .expect(200);
 
-    const cookies: string[] = loginRes.headers['set-cookie'] as string[];
-
+    const cookies = getCookies(loginRes);
     const logoutRes = await request(app.getHttpServer())
       .post('/auth/logout')
       .set('Cookie', cookies)
       .expect(200);
 
-    const cleared: string[] = logoutRes.headers['set-cookie'] as string[];
+    const cleared = getCookies(logoutRes);
     expect(cleared.some((c) => c.includes('access_token=;'))).toBe(true);
 
     // Refresh must fail after logout
-    await request(app.getHttpServer())
-      .post('/auth/refresh')
-      .set('Cookie', cookies)
-      .expect(401);
+    await request(app.getHttpServer()).post('/auth/refresh').set('Cookie', cookies).expect(401);
   });
 
   // ─── FR-008 Change password ─────────────────────────────────────────────────
@@ -260,8 +249,7 @@ describe('Auth (e2e)', () => {
       .send({ email: email('changepw'), password: 'Password1' })
       .expect(200);
 
-    const cookies: string[] = loginRes.headers['set-cookie'] as string[];
-
+    const cookies = getCookies(loginRes);
     await request(app.getHttpServer())
       .post('/auth/password/change')
       .set('Cookie', cookies)
@@ -269,10 +257,7 @@ describe('Auth (e2e)', () => {
       .expect(200);
 
     // Old refresh token must now be rejected
-    await request(app.getHttpServer())
-      .post('/auth/refresh')
-      .set('Cookie', cookies)
-      .expect(401);
+    await request(app.getHttpServer()).post('/auth/refresh').set('Cookie', cookies).expect(401);
   });
 
   // ─── FR-009 /me ─────────────────────────────────────────────────────────────
@@ -285,12 +270,8 @@ describe('Auth (e2e)', () => {
       .send({ email: email('me1'), password: 'Password1' })
       .expect(200);
 
-    const cookies: string[] = loginRes.headers['set-cookie'] as string[];
-
-    const res = await request(app.getHttpServer())
-      .get('/me')
-      .set('Cookie', cookies)
-      .expect(200);
+    const cookies = getCookies(loginRes);
+    const res = await request(app.getHttpServer()).get('/me').set('Cookie', cookies).expect(200);
 
     const body = res.body as Record<string, unknown>;
     expect(body['id']).toBe(userId);
@@ -306,7 +287,7 @@ describe('Auth (e2e)', () => {
       .send({ email: email('me2'), password: 'Password1' })
       .expect(200);
 
-    const cookies: string[] = loginRes.headers['set-cookie'] as string[];
+    const cookies = getCookies(loginRes);
 
     const res = await request(app.getHttpServer())
       .patch('/me')

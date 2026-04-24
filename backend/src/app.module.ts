@@ -1,7 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { ProblemDetailsFilter } from './common/filters/problem-details.filter';
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { HealthController } from './common/health.controller';
 import { AuthModule } from './modules/auth/auth.module';
 
@@ -34,6 +37,9 @@ import { AuthModule } from './modules/auth/auth.module';
     AuthModule,
   ],
   controllers: [HealthController],
-  providers: [],
+  providers: [
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_FILTER, useClass: ProblemDetailsFilter },
+  ],
 })
 export class AppModule {}

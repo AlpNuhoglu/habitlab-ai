@@ -13,6 +13,7 @@ import {
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 
+import { Public } from '../../common/decorators/public.decorator';
 import { clearAuthCookies, setAuthCookies } from '../../common/helpers/cookie.helper';
 import { AuthService } from './auth.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -45,6 +46,7 @@ export class AuthController {
   constructor(@Inject(AuthService) private readonly authService: AuthService) {}
 
   // TODO(WP5): rate-limit 5 per IP per hour
+  @Public()
   @Post('register')
   @HttpCode(202)
   @ApiOperation({ summary: 'Register a new user (FR-001)' })
@@ -55,6 +57,7 @@ export class AuthController {
     return this.authService.register(dto);
   }
 
+  @Public()
   @Get('verify')
   @HttpCode(200)
   @ApiOperation({ summary: 'Verify email address (FR-002)' })
@@ -66,6 +69,7 @@ export class AuthController {
   }
 
   // TODO(WP5): rate-limit 10 per IP per minute
+  @Public()
   @Post('login')
   @HttpCode(200)
   @ApiOperation({ summary: 'Log in with email + password (FR-003)' })
@@ -86,6 +90,7 @@ export class AuthController {
     return { message: 'Login successful.' };
   }
 
+  @Public()
   @Post('refresh')
   @HttpCode(200)
   @ApiOperation({ summary: 'Rotate refresh token (FR-004)' })
@@ -109,6 +114,7 @@ export class AuthController {
     return { message: 'Logged out.' };
   }
 
+  @Public()
   @Post('password/forgot')
   @HttpCode(200)
   @ApiOperation({ summary: 'Request password reset link (FR-006)' })
@@ -118,6 +124,7 @@ export class AuthController {
     return { message: 'If that email is registered, a reset link has been sent.' };
   }
 
+  @Public()
   @Post('password/reset')
   @HttpCode(200)
   @ApiOperation({ summary: 'Complete password reset with token (FR-007)' })

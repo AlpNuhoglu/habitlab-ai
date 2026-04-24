@@ -1,6 +1,8 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 
+import { Public } from './decorators/public.decorator';
+
 /**
  * Liveness and readiness probes.
  *
@@ -9,6 +11,7 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
  *
  * See the NFR-072 row of the analysis report §4.2.8.
  */
+@Public()
 @ApiTags('health')
 @Controller()
 export class HealthController {

@@ -2,6 +2,7 @@ import {
   Column,
   Entity,
   Index,
+  JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
@@ -13,11 +14,16 @@ export class RefreshToken {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
+  // JoinColumn tells TypeORM the FK column is user_id (snake_case).
+  // Without it TypeORM generates a second camelCase userId column that
+  // doesn't exist in the DB.
   @ManyToOne(() => User, { onDelete: 'CASCADE', nullable: false })
+  @JoinColumn({ name: 'user_id' })
   @Index()
   user!: User;
 
-  @Column({ name: 'user_id', type: 'uuid' })
+  // Read-only scalar alias for the FK — insert/update go through the relation.
+  @Column({ name: 'user_id', type: 'uuid', insert: false, update: false })
   userId!: string;
 
   @Column({ name: 'token_hash', type: 'text', unique: true })

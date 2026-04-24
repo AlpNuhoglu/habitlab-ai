@@ -32,6 +32,11 @@ const CODE_TO_SLUG: Record<string, string> = {
   TOKEN_EXPIRED: 'token-expired',
   TOKEN_INVALID: 'token-invalid',
   TOKEN_REUSED: 'token-reused',
+  // Habits (WP3)
+  HABIT_ARCHIVED: 'habit-archived',
+  RETRO_LIMIT_EXCEEDED: 'retro-limit-exceeded',
+  FUTURE_DATE: 'future-date',
+  HARD_DELETE_LIMIT: 'hard-delete-limit',
 };
 
 @Catch(HttpException)

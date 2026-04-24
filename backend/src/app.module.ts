@@ -8,9 +8,9 @@ import { ProblemDetailsFilter } from './common/filters/problem-details.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { HealthController } from './common/health.controller';
 import { AuthModule } from './modules/auth/auth.module';
+import { HabitsModule } from './modules/habits/habits.module';
 
 // Subsequent feature modules will be uncommented in their respective WPs:
-//   HabitsModule          ← WP3
 //   EventsModule          ← WP4
 //   AnalyticsModule       ← WP5
 //   RecommendationsModule ← WP6
@@ -37,6 +37,7 @@ import { AuthModule } from './modules/auth/auth.module';
       }),
     }),
     AuthModule,
+    HabitsModule,
   ],
   controllers: [HealthController],
   providers: [

@@ -75,7 +75,7 @@ Track which WP is active. Check the box when a WP is done and the project ships 
 
 - [x] **WP1** — Repo scaffolding, docker-compose, CI pipeline green on empty test.
 - [x] **WP2** — Auth: register, verify, login, refresh, logout, password reset.
-- [ ] **WP3** — Habit CRUD + daily tracking + basic dashboard (synchronous aggregation).
+- [x] **WP3** — Habit CRUD + daily tracking + basic dashboard (synchronous aggregation).
 - [ ] **WP4** — Event log with partitioning, outbox publisher, broker abstraction.
 - [ ] **WP5** — Analytics worker, `user_analytics` + `habit_analytics` tables, Redis cache.
 - [ ] **WP6** — Rule-based recommendation engine.
@@ -105,3 +105,11 @@ If the task is large (>5 file changes or introduces a new bounded context), **us
 If you need a decision I have not specified, ask. Do not guess and then apologize later.
 
 Before touching the database schema, check the analysis report section 5.1 — the table or column may already be specified there.
+
+---
+
+## WP3 implementation notes
+
+- **Weekly/custom habit streak**: WP3 uses the same day-level streak algorithm as daily habits (`computeCurrentStreak` in `habits.service.ts`). The spec says "consecutive satisfied weeks" for weekly/custom — this must be revised in **WP5** when the analytics worker is built. Ticket: rewrite `computeCurrentStreak` to accept `frequencyType` and compute week-level satisfied-weeks for non-daily habits.
+- **Dashboard performance**: WP3 hits Postgres directly on every `GET /dashboard` (no cache). `X-Cache: MISS` always. Redis warm path comes in WP5 via the analytics worker.
+- **Streak denominator (completionRate30d)**: always 30, regardless of habit age. Consistent UX; agreed in plan review.

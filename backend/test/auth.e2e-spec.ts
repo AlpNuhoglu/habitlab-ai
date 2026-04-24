@@ -52,7 +52,9 @@ async function registerAndVerify(
   // EMAIL_DRIVER=console means no email is sent. We mint the verify token the
   // same way AuthService.signEmailVerifyToken does: JWT signed with JWT_ACCESS_SECRET.
   const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
-  const verifyToken = jwt.sign({ sub: userId, purpose: 'email_verify' }, secret, { expiresIn: '24h' });
+  const verifyToken = jwt.sign({ sub: userId, purpose: 'email_verify' }, secret, {
+    expiresIn: '24h',
+  });
 
   await request(app.getHttpServer()).get('/auth/verify').query({ token: verifyToken }).expect(200);
 

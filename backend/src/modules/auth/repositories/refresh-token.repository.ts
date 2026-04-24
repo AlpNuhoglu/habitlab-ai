@@ -4,7 +4,6 @@ import { IsNull } from 'typeorm';
 import type { Repository } from 'typeorm';
 
 import { RefreshToken } from '../entities/refresh-token.entity';
-import type { User } from '../entities/user.entity';
 
 export interface CreateRefreshTokenData {
   userId: string;
@@ -29,9 +28,6 @@ export class RefreshTokenRepository {
       ...(data.ipAddress !== undefined ? { ipAddress: data.ipAddress } : {}),
       ...(data.userAgent !== undefined ? { userAgent: data.userAgent } : {}),
     });
-    // Wire up the user relation via userId so the FK constraint is satisfied
-    // without loading the full User record.
-    token.user = { id: data.userId } as User;
     return this.repo.save(token);
   }
 

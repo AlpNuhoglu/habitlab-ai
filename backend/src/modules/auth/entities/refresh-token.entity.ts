@@ -2,28 +2,19 @@ import {
   Column,
   Entity,
   Index,
-  JoinColumn,
-  ManyToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-
-import { User } from './user.entity';
 
 @Entity('refresh_tokens')
 export class RefreshToken {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  // JoinColumn tells TypeORM the FK column is user_id (snake_case).
-  // Without it TypeORM generates a second camelCase userId column that
-  // doesn't exist in the DB.
-  @ManyToOne(() => User, { onDelete: 'CASCADE', nullable: false })
-  @JoinColumn({ name: 'user_id' })
+  // Plain FK column — no @ManyToOne needed. The DB constraint enforces
+  // referential integrity; TypeORM's relation machinery caused column-name
+  // conflicts with the snake_case schema.
+  @Column({ name: 'user_id', type: 'uuid' })
   @Index()
-  user!: User;
-
-  // Read-only scalar alias for the FK — insert/update go through the relation.
-  @Column({ name: 'user_id', type: 'uuid', insert: false, update: false })
   userId!: string;
 
   @Column({ name: 'token_hash', type: 'text', unique: true })

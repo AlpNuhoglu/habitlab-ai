@@ -9,8 +9,10 @@
  */
 
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
+import * as jwt from 'jsonwebtoken';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
 
@@ -39,8 +41,7 @@ const VALID_REGISTER = (suffix: string) => ({
 async function registerAndVerify(
   app: INestApplication,
   suffix: string,
-): Promise<{ userId: string; verifyToken: string }> {
-  // Register
+): Promise<{ userId: string }> {
   const regRes = await request(app.getHttpServer())
     .post('/auth/register')
     .send(VALID_REGISTER(suffix))
@@ -48,18 +49,14 @@ async function registerAndVerify(
 
   const userId: string = (regRes.body as { userId: string }).userId;
 
-  // Extract the verification token from the NestJS logger output by querying
-  // the DB directly — simpler than capturing stdout in CI.
-  const ds: DataSource = app.get(DataSource);
-  const rows: Array<{ email_verification_token: string }> = await ds.query(
-    'SELECT email_verification_token FROM users WHERE id = $1',
-    [userId],
-  );
-  const verifyToken: string = rows[0]?.email_verification_token ?? '';
+  // EMAIL_DRIVER=console means no email is sent. We mint the verify token the
+  // same way AuthService.signEmailVerifyToken does: JWT signed with JWT_ACCESS_SECRET.
+  const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
+  const verifyToken = jwt.sign({ sub: userId, purpose: 'email_verify' }, secret, { expiresIn: '24h' });
 
   await request(app.getHttpServer()).get('/auth/verify').query({ token: verifyToken }).expect(200);
 
-  return { userId, verifyToken };
+  return { userId };
 }
 
 describe('Auth (e2e)', () => {
@@ -124,6 +121,8 @@ describe('Auth (e2e)', () => {
 
   it('4. verifies with valid token → 200 + email_verified_at set', async () => {
     const { userId } = await registerAndVerify(app, 'verify1');
+    // registerAndVerify itself calls /auth/verify and expects 200 — this test
+    // additionally confirms the DB column was written.
 
     const ds = app.get(DataSource);
     const rows: Array<{ email_verified_at: Date | null }> = await ds.query(

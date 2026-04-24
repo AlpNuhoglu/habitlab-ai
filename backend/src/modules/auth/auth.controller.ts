@@ -145,7 +145,7 @@ export class AuthController {
     @Req() req: Request,
   ) {
     const user = getUser(req);
-    await this.authService.changePassword(user.sub, dto, refreshCookie(req));
+    await this.authService.changePassword(user.sub, dto);
     return { message: 'Password changed.' };
   }
 }

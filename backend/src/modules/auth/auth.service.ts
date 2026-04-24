@@ -314,7 +314,6 @@ export class AuthService {
   async changePassword(
     userId: string,
     dto: ChangePasswordDto,
-    rawRefreshToken: string | null,
   ): Promise<void> {
     const user = await this.userRepo.findById(userId);
     if (!user) throw new UnauthorizedException();
@@ -329,25 +328,13 @@ export class AuthService {
 
     const newHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
 
-    // Identify current refresh token to keep it active
-    let currentTokenId: string | undefined;
-    if (rawRefreshToken) {
-      const tokenHash = hashToken(rawRefreshToken);
-      const current = await this.refreshTokenRepo.findActiveByHash(tokenHash);
-      if (current) currentTokenId = current.id;
-    }
-
     await this.dataSource.transaction(async (em) => {
       await em.update(
         User,
         { id: userId },
         { passwordHash: newHash },
       );
-      if (currentTokenId) {
-        await this.refreshTokenRepo.revokeAllForUserExcept(userId, currentTokenId, new Date());
-      } else {
-        await this.refreshTokenRepo.revokeAllForUser(userId, new Date());
-      }
+      await this.refreshTokenRepo.revokeAllForUser(userId, new Date());
       await this.emitEvent(em, {
         userId,
         eventType: 'user.password_changed',

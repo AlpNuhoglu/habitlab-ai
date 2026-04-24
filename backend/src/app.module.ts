@@ -3,8 +3,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { HealthController } from './common/health.controller';
+import { AuthModule } from './modules/auth/auth.module';
 
-// AuthModule is wired in ADIM 4 once the module file exists.
 // Subsequent feature modules will be uncommented in their respective WPs:
 //   HabitsModule          ← WP3
 //   EventsModule          ← WP4
@@ -31,6 +31,7 @@ import { HealthController } from './common/health.controller';
         logging: config.get<string>('NODE_ENV') !== 'production',
       }),
     }),
+    AuthModule,
   ],
   controllers: [HealthController],
   providers: [],

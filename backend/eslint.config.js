@@ -19,4 +19,16 @@ export default [
       '@typescript-eslint/no-require-imports': 'error',
     },
   },
+  // Controllers and services use emitDecoratorMetadata: NestJS's ValidationPipe and
+  // DI container need class references at runtime for @Body() params and constructor
+  // injection. ESLint can't detect this, so we allow value imports in these files.
+  {
+    files: ['src/**/*.controller.ts', 'src/**/*.service.ts'],
+    rules: {
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        { prefer: 'no-type-imports' },
+      ],
+    },
+  },
 ];

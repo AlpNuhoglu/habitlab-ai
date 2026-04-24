@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { resolve } from 'path';
 
 import { ProblemDetailsFilter } from './common/filters/problem-details.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
@@ -20,7 +21,8 @@ import { AuthModule } from './modules/auth/auth.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ['.env.local', '.env'],
+      // __dirname is backend/src or backend/dist; two levels up = monorepo root.
+      envFilePath: [resolve(__dirname, '../../.env.local'), resolve(__dirname, '../../.env')],
       cache: true,
     }),
     TypeOrmModule.forRootAsync({

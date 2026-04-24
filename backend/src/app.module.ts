@@ -1,16 +1,18 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { HealthController } from './common/health.controller';
 
-/**
- * Root application module.
- *
- * Feature modules (Auth, Habits, Events, Analytics, Experiments, Recommendations,
- * Notifications) are imported here as they're built in each work package.
- *
- * See docs/HabitLab_AI_Analysis_Report.docx §3.3.2 for the module boundary rules.
- */
+// AuthModule is wired in ADIM 4 once the module file exists.
+// Subsequent feature modules will be uncommented in their respective WPs:
+//   HabitsModule          ← WP3
+//   EventsModule          ← WP4
+//   AnalyticsModule       ← WP5
+//   RecommendationsModule ← WP6
+//   ExperimentsModule     ← WP8
+//   NotificationsModule   ← WP9
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -18,14 +20,17 @@ import { HealthController } from './common/health.controller';
       envFilePath: ['.env.local', '.env'],
       cache: true,
     }),
-    // TypeOrmModule.forRootAsync(...)   ← added in WP2
-    // AuthModule                         ← added in WP2
-    // HabitsModule                       ← added in WP3
-    // EventsModule                       ← added in WP4
-    // AnalyticsModule                    ← added in WP5
-    // RecommendationsModule              ← added in WP6
-    // ExperimentsModule                  ← added in WP8
-    // NotificationsModule                ← added in WP9
+    TypeOrmModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        type: 'postgres' as const,
+        url: config.getOrThrow<string>('DATABASE_URL'),
+        entities: [__dirname + '/**/*.entity{.ts,.js}'],
+        migrations: [__dirname + '/migrations/*{.ts,.js}'],
+        synchronize: false,
+        logging: config.get<string>('NODE_ENV') !== 'production',
+      }),
+    }),
   ],
   controllers: [HealthController],
   providers: [],

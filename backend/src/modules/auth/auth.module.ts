@@ -5,6 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { MeController } from './me.controller';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { User } from './entities/user.entity';
 import { RefreshTokenRepository } from './repositories/refresh-token.repository';
@@ -24,7 +25,7 @@ import { UserRepository } from './repositories/user.repository';
       }),
     }),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, MeController],
   providers: [AuthService, UserRepository, RefreshTokenRepository],
   exports: [AuthService, UserRepository],
 })

@@ -21,6 +21,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { User } from './entities/user.entity';
 import { RefreshTokenRepository } from './repositories/refresh-token.repository';
 import { UserRepository } from './repositories/user.repository';
@@ -455,6 +456,24 @@ export class AuthService {
         JSON.stringify(event.payload),
       ],
     );
+  }
+
+  async getMe(userId: string): Promise<Omit<User, 'passwordHash'>> {
+    const user = await this.userRepo.findById(userId);
+    if (!user) throw new UnauthorizedException({ code: 'TOKEN_INVALID', message: 'User not found.' });
+    const { passwordHash: _pw, ...safe } = user;
+    return safe;
+  }
+
+  async updateMe(userId: string, dto: UpdateProfileDto): Promise<Omit<User, 'passwordHash'>> {
+    const updated = await this.userRepo.updateProfile(userId, {
+      ...(dto.displayName !== undefined ? { displayName: dto.displayName } : {}),
+      ...(dto.timezone !== undefined ? { timezone: dto.timezone } : {}),
+      ...(dto.locale !== undefined ? { locale: dto.locale } : {}),
+    });
+    if (!updated) throw new UnauthorizedException({ code: 'TOKEN_INVALID', message: 'User not found.' });
+    const { passwordHash: _pw, ...safe } = updated;
+    return safe;
   }
 
   private logEmailToken(kind: string, email: string, token: string): void {

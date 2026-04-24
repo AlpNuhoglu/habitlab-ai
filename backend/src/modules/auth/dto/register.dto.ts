@@ -11,7 +11,7 @@ import {
   registerDecorator
 } from 'class-validator';
 
-function IsIANATimezone(options?: ValidationOptions) {
+export function IsIANATimezone(options?: ValidationOptions) {
   return function (object: object, propertyName: string) {
     registerDecorator({
       name: 'isIANATimezone',

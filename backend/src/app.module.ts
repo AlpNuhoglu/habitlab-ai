@@ -8,6 +8,7 @@ import { ProblemDetailsFilter } from './common/filters/problem-details.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { HealthController } from './common/health.controller';
 import { AuthModule } from './modules/auth/auth.module';
+import { EventsModule } from './modules/events/events.module';
 import { HabitsModule } from './modules/habits/habits.module';
 
 // Subsequent feature modules will be uncommented in their respective WPs:
@@ -38,6 +39,7 @@ import { HabitsModule } from './modules/habits/habits.module';
     }),
     AuthModule,
     HabitsModule,
+    EventsModule,
   ],
   controllers: [HealthController],
   providers: [

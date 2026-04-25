@@ -76,7 +76,7 @@ Track which WP is active. Check the box when a WP is done and the project ships 
 - [x] **WP1** — Repo scaffolding, docker-compose, CI pipeline green on empty test.
 - [x] **WP2** — Auth: register, verify, login, refresh, logout, password reset.
 - [x] **WP3** — Habit CRUD + daily tracking + basic dashboard (synchronous aggregation).
-- [ ] **WP4** — Event log with partitioning, outbox publisher, broker abstraction.
+- [x] **WP4** — Event log with partitioning, outbox publisher, broker abstraction.
 - [ ] **WP5** — Analytics worker, `user_analytics` + `habit_analytics` tables, Redis cache.
 - [ ] **WP6** — Rule-based recommendation engine.
 - [ ] **WP7** — LLM augmentation with safety filter + cost controls.

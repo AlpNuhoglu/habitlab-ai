@@ -383,15 +383,51 @@ export class HabitsService {
 
     validateLogDate(logDate, timezone);
 
+    interface RawLogRow {
+      id: string;
+      habit_id: string;
+      user_id: string;
+      log_date: string;
+      status: HabitLogStatus;
+      note: string | null;
+      logged_at: Date;
+      updated_at: Date;
+      is_new: boolean;
+    }
+
     let isNew = false;
     let log: HabitLog | undefined;
 
     await this.dataSource.transaction(async (em) => {
-      const result = await this.habitLogRepo.upsertLog(userId, habitId, logDate, status, note);
-      isNew = result.isNew;
-      log = result.log;
+      // upsertLog is inlined here so the INSERT and the event INSERT share the same transaction.
+      // Calling habitLogRepo.upsertLog() would use repo.manager (non-transactional) and break atomicity.
+      const rows = await em.query<RawLogRow[]>(
+        `INSERT INTO habit_logs (habit_id, user_id, log_date, status, note)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (habit_id, log_date) DO UPDATE
+           SET status     = EXCLUDED.status,
+               note       = EXCLUDED.note,
+               updated_at = now()
+         RETURNING *, (xmax = 0) AS is_new`,
+        [habitId, userId, logDate, status, note],
+      );
 
-      const eventType = !result.isNew
+      const row = rows[0];
+      if (!row) throw new Error('Log upsert returned no row');
+
+      isNew = Boolean(row.is_new);
+      log = Object.assign(new HabitLog(), {
+        id: row.id,
+        habitId: row.habit_id,
+        userId: row.user_id,
+        logDate: row.log_date,
+        status: row.status,
+        note: row.note,
+        loggedAt: row.logged_at,
+        updatedAt: row.updated_at,
+      });
+
+      const eventType = !isNew
         ? 'habit.log_updated'
         : status === 'completed'
         ? 'habit.completed'
@@ -410,7 +446,7 @@ export class HabitsService {
             date: logDate,
             habitId,
             noteHash: note ? createHash('sha256').update(note).digest('hex') : null,
-            isUpdate: !result.isNew,
+            isUpdate: !isNew,
           }),
         ],
       );
@@ -461,28 +497,58 @@ export class HabitsService {
     const habit = await this.habitRepo.findOne(userId, habitId);
     if (!habit) throw new NotFoundException();
 
-    const updated = await this.habitLogRepo.updateNote(userId, habitId, logDate, note);
-    if (!updated) throw new NotFoundException();
+    interface RawLogRow {
+      id: string;
+      habit_id: string;
+      user_id: string;
+      log_date: string;
+      status: HabitLogStatus;
+      note: string | null;
+      logged_at: Date;
+      updated_at: Date;
+    }
+
+    let updated: HabitLog | undefined;
 
     await this.dataSource.transaction(async (em) => {
-      await em.query(
-        `INSERT INTO events (user_id, event_type, aggregate_type, aggregate_id, payload)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [
-          userId,
-          'habit.log_updated',
-          'habit',
-          habitId,
-          JSON.stringify({
-            date: logDate,
-            habitId,
-            noteHash: createHash('sha256').update(note).digest('hex'),
-            isUpdate: true,
-          }),
-        ],
+      // Note update and event emission must be atomic (outbox pattern).
+      const rows = await em.query<RawLogRow[]>(
+        `UPDATE habit_logs
+            SET note = $1, updated_at = now()
+          WHERE habit_id = $2 AND user_id = $3 AND log_date = $4
+          RETURNING *`,
+        [note, habitId, userId, logDate],
       );
+
+      if (!rows[0]) throw new NotFoundException();
+
+      const row = rows[0];
+      updated = Object.assign(new HabitLog(), {
+        id: row.id,
+        habitId: row.habit_id,
+        userId: row.user_id,
+        logDate: row.log_date,
+        status: row.status,
+        note: row.note,
+        loggedAt: row.logged_at,
+        updatedAt: row.updated_at,
+      });
+
+      await this.emitEvent(em, {
+        userId,
+        eventType: 'habit.log_updated',
+        aggregateType: 'habit',
+        aggregateId: habitId,
+        payload: {
+          date: logDate,
+          habitId,
+          noteHash: createHash('sha256').update(note).digest('hex'),
+          isUpdate: true,
+        },
+      });
     });
 
+    if (!updated) throw new Error('updateLogNote transaction did not assign result');
     return updated;
   }
 

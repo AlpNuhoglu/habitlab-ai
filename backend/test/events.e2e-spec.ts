@@ -116,55 +116,58 @@ describe('Outbox + Broker (e2e)', () => {
   });
 
   // ─── 1. habit.created event row ─────────────────────────────────────────────
+  //
+  // Root-cause note: previously this was four separate it() blocks sharing a
+  // describe-scoped habitId. The suite-level beforeEach(() => stub.reset())
+  // fires before EVERY it(), so any events published during one it()'s sleep
+  // were cleared from the stub before the next it() started. Fixed by:
+  //   (a) making habitId local to a single it() so no inter-test state leaks
+  //   (b) calling stub.reset() at the top of the test (right before creation)
+  //       so the suite-level beforeEach that already fired is a no-op
+  //   (c) asserting event-row, published_at, and stub contents in one it()
+  //       so no beforeEach can wipe the stub between the sleep and the check
 
   describe('habit.created event', () => {
     let cookie: string;
-    let habitId: string;
 
     beforeAll(async () => {
       ({ accessCookie: cookie } = await registerLoginAndGetCookie(app, 'ev1'));
     });
 
-    it('POST /habits inserts an event row with type habit.created', async () => {
+    it('event row exists with published_at NULL, then OutboxPublisher publishes within 600ms', async () => {
+      // Reset stub here (suite beforeEach already ran, but this makes intent explicit).
+      stub.reset();
+
       const res = await request(app.getHttpServer())
         .post('/habits')
         .set('Cookie', `access_token=${cookie}`)
         .send({ name: 'Meditate', frequencyType: 'daily', difficulty: 2 })
         .expect(201);
 
-      habitId = (res.body as { id: string }).id;
+      const habitId = (res.body as { id: string }).id;
 
-      const rows: Array<{ event_type: string }> = await ds.query(
-        `SELECT event_type FROM events
+      // Event row must exist with published_at NULL immediately after creation.
+      const rowsBefore: Array<{ event_type: string; published_at: Date | null }> = await ds.query(
+        `SELECT event_type, published_at FROM events
           WHERE aggregate_type = 'habit' AND aggregate_id = $1`,
         [habitId],
       );
+      expect(rowsBefore).toHaveLength(1);
+      expect(rowsBefore[0]?.event_type).toBe('habit.created');
+      expect(rowsBefore[0]?.published_at).toBeNull();
 
-      expect(rows).toHaveLength(1);
-      expect(rows[0]?.event_type).toBe('habit.created');
-    });
+      // OutboxPublisher polls every 200ms; two full cycles fit within 600ms.
+      await sleep(600);
 
-    it('event row has published_at NULL immediately after insert', async () => {
-      const rows: Array<{ published_at: Date | null }> = await ds.query(
+      const rowsAfter: Array<{ published_at: Date | null }> = await ds.query(
         `SELECT published_at FROM events WHERE aggregate_id = $1`,
         [habitId],
       );
-      expect(rows[0]?.published_at).toBeNull();
-    });
+      expect(rowsAfter[0]?.published_at).not.toBeNull();
 
-    it('OutboxPublisher sets published_at within 500ms', async () => {
-      await sleep(500);
-
-      const rows: Array<{ published_at: Date | null }> = await ds.query(
-        `SELECT published_at FROM events WHERE aggregate_id = $1`,
-        [habitId],
+      const ev = stub.getPublished().find(
+        (e) => e.eventType === 'habit.created' && e.aggregateId === habitId,
       );
-      expect(rows[0]?.published_at).not.toBeNull();
-    });
-
-    it('StubBrokerAdapter received the habit.created event', async () => {
-      const published = stub.getPublished();
-      const ev = published.find((e) => e.eventType === 'habit.created' && e.aggregateId === habitId);
       expect(ev).toBeDefined();
       expect(ev?.aggregateType).toBe('habit');
       expect(typeof ev?.payload['name']).toBe('string');

@@ -72,7 +72,7 @@ This is a work-in-progress. The project ships in three phases:
 | **2 Event-driven** | 5–9  | WP4–WP6 | Event log, worker-maintained analytics, rule-based recs |
 | **3 Intelligence** | 10–15 | WP7–WP10 | LLM augmentation, A/B tests, notifications, prod deploy |
 
-Current phase: **Phase 1, WP3** (scaffolding).
+Current phase: **Phase 2, WP5**.
 
 ---
 

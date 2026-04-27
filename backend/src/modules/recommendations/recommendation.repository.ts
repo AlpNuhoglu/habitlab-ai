@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+import type { EntityManager, Repository } from 'typeorm';
 
 import { UserScopedRepository } from '../../common/repositories/user-scoped.repository';
-import { Recommendation, RecommendationStatus } from './entities/recommendation.entity';
+import type { RecommendationStatus } from './entities/recommendation.entity';
+import { Recommendation } from './entities/recommendation.entity';
 
 interface InsertData {
   userId: string;

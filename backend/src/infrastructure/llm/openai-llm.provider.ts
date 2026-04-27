@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import type { ConfigService } from '@nestjs/config';
 import OpenAI, { APIError } from 'openai';
 
 import type { LLMPrompt, LLMProvider, LLMResponse } from './llm-provider.interface';

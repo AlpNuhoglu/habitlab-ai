@@ -6,7 +6,7 @@ import { ReduceDifficultyRule } from './rules/reduce-difficulty.rule';
 import { RescheduleRule } from './rules/reschedule.rule';
 import { RetroactiveLoggingReminderRule } from './rules/retroactive-logging-reminder.rule';
 import { StreakCelebrationRule } from './rules/streak-celebration.rule';
-import type { IRule, RuleContext, RuleResult } from './rules/rule.interface';
+import { IRule, RuleContext, RuleResult } from './rules/rule.interface';
 
 @Injectable()
 export class RuleEngineService {

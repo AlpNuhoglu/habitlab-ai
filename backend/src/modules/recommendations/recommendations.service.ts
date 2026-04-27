@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
-import type { Recommendation } from './entities/recommendation.entity';
+import { Recommendation } from './entities/recommendation.entity';
 import { RecommendationRepository } from './recommendation.repository';
 
 export interface RecommendationDto {

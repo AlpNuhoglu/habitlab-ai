@@ -16,10 +16,7 @@ function shouldUseStub(config: ConfigService): boolean {
   // process.env.NODE_ENV is set to 'test' by Jest before any module initialises.
   // config.get('NODE_ENV') reads from the loaded .env file which may say 'development',
   // so we read NODE_ENV from process.env directly to get the authoritative value.
-  return (
-    config.get<string>('BROKER_ADAPTER') === 'stub' ||
-    process.env['NODE_ENV'] === 'test'
-  );
+  return config.get<string>('BROKER_ADAPTER') === 'stub' || process.env['NODE_ENV'] === 'test';
 }
 
 @Global()

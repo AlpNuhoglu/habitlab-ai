@@ -15,7 +15,7 @@ import { buildLlmPrompt } from './llm-prompt.builder';
 import { applySafetyFilter } from './llm-safety.filter';
 import { RecommendationRepository } from './recommendation.repository';
 import { RuleEngineService } from './rule-engine.service';
-import type { RuleContext, RuleResult } from './rules/rule.interface';
+import { RuleContext, RuleResult } from './rules/rule.interface';
 
 const CONSUMER_NAME = 'recommendations-worker';
 const STREAM_KEY = 'habitlab:events';

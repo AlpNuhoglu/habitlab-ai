@@ -40,6 +40,8 @@ function extractCookie(cookies: string[], name: string): string | undefined {
   return found?.split(';')[0]?.slice(name.length + 1);
 }
 
+async function waitFor(fn: () => boolean, timeout: 1000, interval: 50) {}
+
 const RUN = Date.now();
 const email = (suffix: string) => `events+${RUN}+${suffix}@example.com`;
 
@@ -165,9 +167,9 @@ describe('Outbox + Broker (e2e)', () => {
       );
       expect(rowsAfter[0]?.published_at).not.toBeNull();
 
-      const ev = stub.getPublished().find(
-        (e) => e.eventType === 'habit.created' && e.aggregateId === habitId,
-      );
+      const ev = stub
+        .getPublished()
+        .find((e) => e.eventType === 'habit.created' && e.aggregateId === habitId);
       expect(ev).toBeDefined();
       expect(ev?.aggregateType).toBe('habit');
       expect(typeof ev?.payload['name']).toBe('string');
@@ -175,68 +177,73 @@ describe('Outbox + Broker (e2e)', () => {
   });
 
   // ─── 2. habit.completed + payload correctness ────────────────────────────────
+  //
+  // Three assertions consolidated into one it() for the same reason as habit.created:
+  // the suite-level beforeEach(() => stub.reset()) fires between it() blocks, so
+  // any stub contents from it() 1 would be cleared before it() 3's sleep+check.
 
   describe('habit.completed event', () => {
     let cookie: string;
-    let habitId: string;
     const today = todayStr();
 
     beforeAll(async () => {
       ({ accessCookie: cookie } = await registerLoginAndGetCookie(app, 'ev2'));
+    });
 
-      const res = await request(app.getHttpServer())
+    it('inserts event with correct payload, re-log emits log_updated, and OutboxPublisher publishes within 500ms', async () => {
+      stub.reset();
+
+      const habitRes = await request(app.getHttpServer())
         .post('/habits')
         .set('Cookie', `access_token=${cookie}`)
         .send({ name: 'Run', frequencyType: 'daily' })
         .expect(201);
-      habitId = (res.body as { id: string }).id;
+      const habitId = (habitRes.body as { id: string }).id;
 
+      // Reset again after habit.created lands so stub only contains log events below.
       stub.reset();
-    });
 
-    it('POST /habits/:id/log inserts habit.completed event with correct payload', async () => {
       await request(app.getHttpServer())
         .post(`/habits/${habitId}/log`)
         .set('Cookie', `access_token=${cookie}`)
         .send({ status: 'completed', date: today })
         .expect(201);
 
+      // Event row must have correct payload immediately.
       const rows: Array<{ event_type: string; payload: Record<string, unknown> }> = await ds.query(
         `SELECT event_type, payload FROM events
           WHERE aggregate_type = 'habit' AND aggregate_id = $1
             AND event_type = 'habit.completed'`,
         [habitId],
       );
-
       expect(rows).toHaveLength(1);
       const payload = rows[0]?.payload;
       expect(payload?.['status']).toBe('completed');
       expect(payload?.['date']).toBe(today);
       expect(payload?.['habitId']).toBe(habitId);
       expect(payload?.['isUpdate']).toBe(false);
-    });
 
-    it('re-logging same date emits habit.log_updated not habit.completed', async () => {
+      // Re-logging the same date must emit habit.log_updated.
       await request(app.getHttpServer())
         .post(`/habits/${habitId}/log`)
         .set('Cookie', `access_token=${cookie}`)
         .send({ status: 'skipped', date: today })
         .expect(200);
 
-      const rows: Array<{ event_type: string }> = await ds.query(
+      const updateRows: Array<{ event_type: string }> = await ds.query(
         `SELECT event_type FROM events
           WHERE aggregate_type = 'habit' AND aggregate_id = $1
             AND event_type = 'habit.log_updated'`,
         [habitId],
       );
-      expect(rows.length).toBeGreaterThanOrEqual(1);
-    });
+      expect(updateRows.length).toBeGreaterThanOrEqual(1);
 
-    it('OutboxPublisher publishes habit.completed to stub within 500ms', async () => {
+      // OutboxPublisher polls every 200ms; two full cycles fit within 500ms.
       await sleep(500);
 
-      const published = stub.getPublished();
-      const ev = published.find((e) => e.eventType === 'habit.completed' && e.aggregateId === habitId);
+      const ev = stub.getPublished().find(
+        (e) => e.eventType === 'habit.completed' && e.aggregateId === habitId,
+      );
       expect(ev).toBeDefined();
       expect(ev?.payload['status']).toBe('completed');
     });

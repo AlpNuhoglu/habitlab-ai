@@ -2,7 +2,11 @@ import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nest
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
-import { BROKER_ADAPTER, BrokerAdapter, OutboxEvent } from '../../infrastructure/broker/broker-adapter.interface';
+import {
+  BROKER_ADAPTER,
+  BrokerAdapter,
+  OutboxEvent,
+} from '../../infrastructure/broker/broker-adapter.interface';
 
 const POLL_INTERVAL_MS = 200;
 const BATCH_SIZE = 100;
@@ -75,15 +79,16 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
             await this.broker.publish(event);
             publishedIds.push(row.id);
           } catch (err) {
-            this.logger.error(`Failed to publish event ${row.id} (${row.event_type}): ${String(err)}`);
+            this.logger.error(
+              `Failed to publish event ${row.id} (${row.event_type}): ${String(err)}`,
+            );
           }
         }
 
         if (publishedIds.length > 0) {
-          await em.query(
-            `UPDATE events SET published_at = now() WHERE id = ANY($1::uuid[])`,
-            [publishedIds],
-          );
+          await em.query(`UPDATE events SET published_at = now() WHERE id = ANY($1::uuid[])`, [
+            publishedIds,
+          ]);
         }
       });
     } catch (err) {

@@ -165,10 +165,22 @@ export interface DashboardSummaryDto {
   longestStreakAnyHabit: number;
 }
 
+export interface ActiveRecommendationDashboardDto {
+  id: string;
+  title: string;
+  body: string;
+  category: string;
+  priority: number;
+  habitId: string | null;
+  actionPayload: Record<string, unknown> | null;
+  createdAt: string;
+  expiresAt: string | null;
+}
+
 export interface DashboardDto {
   summary: DashboardSummaryDto;
   habits: DashboardHabitDto[];
-  activeRecommendations: unknown[];
+  activeRecommendations: ActiveRecommendationDashboardDto[];
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -635,6 +647,45 @@ export class HabitsService {
     const overallCompletionRate30d =
       maxPossible > 0 ? Math.round((totalCompleted30d / maxPossible) * 100) / 100 : 0;
 
+    const recRows = await this.dataSource.query<
+      Array<{
+        id: string;
+        title: string;
+        body: string;
+        category: string;
+        priority: number;
+        habit_id: string | null;
+        action_payload: Record<string, unknown> | null;
+        created_at: Date;
+        expires_at: Date | null;
+      }>
+    >(
+      `SELECT id, title, body, category, priority, habit_id, action_payload, created_at, expires_at
+       FROM recommendations
+       WHERE user_id = $1
+         AND status = 'active'
+         AND (expires_at IS NULL OR expires_at > NOW())
+       ORDER BY priority DESC, created_at DESC
+       LIMIT 3`,
+      [userId],
+    );
+
+    const activeRecommendations: ActiveRecommendationDashboardDto[] = recRows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      body: r.body,
+      category: r.category,
+      priority: r.priority,
+      habitId: r.habit_id,
+      actionPayload: r.action_payload,
+      createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
+      expiresAt: r.expires_at
+        ? r.expires_at instanceof Date
+          ? r.expires_at.toISOString()
+          : String(r.expires_at)
+        : null,
+    }));
+
     return {
       summary: {
         activeHabits: habits.length,
@@ -645,7 +696,7 @@ export class HabitsService {
         longestStreakAnyHabit,
       },
       habits: habitDtos,
-      activeRecommendations: [],
+      activeRecommendations,
     };
   }
 

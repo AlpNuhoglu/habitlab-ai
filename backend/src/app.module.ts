@@ -7,14 +7,13 @@ import { resolve } from 'path';
 import { ProblemDetailsFilter } from './common/filters/problem-details.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { HealthController } from './common/health.controller';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { EventsModule } from './modules/events/events.module';
 import { HabitsModule } from './modules/habits/habits.module';
+import { RecommendationsModule } from './modules/recommendations/recommendations.module';
 
 // Subsequent feature modules will be uncommented in their respective WPs:
-//   EventsModule          ← WP4
-//   AnalyticsModule       ← WP5
-//   RecommendationsModule ← WP6
 //   ExperimentsModule     ← WP8
 //   NotificationsModule   ← WP9
 
@@ -40,6 +39,8 @@ import { HabitsModule } from './modules/habits/habits.module';
     AuthModule,
     HabitsModule,
     EventsModule,
+    AnalyticsModule,
+    RecommendationsModule,
   ],
   controllers: [HealthController],
   providers: [

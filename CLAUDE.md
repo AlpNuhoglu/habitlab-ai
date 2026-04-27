@@ -77,9 +77,9 @@ Track which WP is active. Check the box when a WP is done and the project ships 
 - [x] **WP2** — Auth: register, verify, login, refresh, logout, password reset.
 - [x] **WP3** — Habit CRUD + daily tracking + basic dashboard (synchronous aggregation).
 - [x] **WP4** — Event log with partitioning, outbox publisher, broker abstraction.
-- [ ] **WP5** — Analytics worker, `user_analytics` + `habit_analytics` tables, Redis cache.
-- [ ] **WP6** — Rule-based recommendation engine.
-- [ ] **WP7** — LLM augmentation with safety filter + cost controls.
+- [x] **WP5** — Analytics worker, `user_analytics` + `habit_analytics` tables, Redis cache.
+- [x] **WP6** — Rule-based recommendation engine.
+- [x] **WP7** — LLM augmentation with safety filter + cost controls.
 - [ ] **WP8** — A/B testing subsystem (assignment, exposure logging, analysis SQL).
 - [ ] **WP9** — Web push notifications with variant-aware copy.
 - [ ] **WP10** — Observability + production deployment.
@@ -110,6 +110,52 @@ Before touching the database schema, check the analysis report section 5.1 — t
 
 ## WP3 implementation notes
 
-- **Weekly/custom habit streak**: WP3 uses the same day-level streak algorithm as daily habits (`computeCurrentStreak` in `habits.service.ts`). The spec says "consecutive satisfied weeks" for weekly/custom — this must be revised in **WP5** when the analytics worker is built. Ticket: rewrite `computeCurrentStreak` to accept `frequencyType` and compute week-level satisfied-weeks for non-daily habits.
-- **Dashboard performance**: WP3 hits Postgres directly on every `GET /dashboard` (no cache). `X-Cache: MISS` always. Redis warm path comes in WP5 via the analytics worker.
+- **Weekly/custom habit streak**: WP3 uses the same day-level streak algorithm as daily habits (`computeCurrentStreak` in `habits.service.ts`). The spec says "consecutive satisfied weeks" for weekly/custom — this must be revised in **WP6** when the recommendation engine is built. Ticket: rewrite `computeCurrentStreak` to accept `frequencyType` and compute week-level satisfied-weeks for non-daily habits.
+- **Dashboard performance**: WP3 hits Postgres directly on every `GET /dashboard` (no cache). `X-Cache: MISS` always. Redis warm path comes in WP5 via the analytics worker. ✅ **Resolved in WP5.**
 - **Streak denominator (completionRate30d)**: always 30, regardless of habit age. Consistent UX; agreed in plan review.
+
+---
+
+## WP5 implementation notes
+
+- **CacheService**: `CACHE_SERVICE` token exported from `InfrastructureModule` (global). `RedisCacheAdapter` in prod/dev, `NullCacheAdapter` (get→null, set/del→no-op) in `NODE_ENV=test` or `BROKER_ADAPTER=stub`. Tests always get cache MISS — no Redis required.
+- **Cache key constants**: `CacheKeys` in `infrastructure/cache/cache-keys.ts`. Keys: `dashboard:{userId}` TTL 300s, `analytics:{userId}:global` TTL 600s, `analytics:{userId}:habit:{habitId}` TTL 600s (§6.4.1).
+- **Cache coherence**: read-through + explicit DEL (§6.4.2). Worker DELs after DB commit; API SETs on cache miss. No write-through.
+- **Analytics worker**: `AnalyticsWorkerService` — in non-test mode polls Redis Stream `habitlab:events` via XREADGROUP (consumer group `habitlab-analytics`). In test mode, polling is skipped; `handleEvent(event)` is called directly by integration tests. Idempotency via `processed_events(event_id, 'analytics-worker')` INSERT ON CONFLICT DO NOTHING (§6.2.4).
+- **completion_by_hour source**: `EXTRACT(HOUR FROM habit_logs.logged_at AT TIME ZONE users.timezone)` — actual log time, not preferred_time. Gives real behavioral insight ("you actually complete this at 18:00").
+- **completion_by_weekday**: `MOD(EXTRACT(DOW FROM logged_at AT TIME ZONE tz)::int + 6, 7)` — Mon=0..Sun=6 (matches §5.1.8 best_weekday convention).
+- **Weekly/custom streak in analytics worker**: `recomputeHabitAnalytics` uses day-level `computeCurrentStreak` / `computeLongestStreak` (WP3 carry-over). TODO comment in `analytics-worker.service.ts`. Fix in WP6 alongside recommendation engine.
+- **monthly_trend (FR-041)**: not stored in `habit_analytics` DDL — computed on demand per endpoint call and cached with the rest of the analytics response.
+- **completion_rate_all_time (FR-041)**: not stored in `habit_analytics` DDL — computed on demand: `completed_count / days_since_habit_created`.
+- **Migration**: `1745300000000-AnalyticsSchema.ts`. DDL is §5.1.8 + §5.1.9 verbatim. `down()` is empty (forward-only).
+- **Analytics endpoints**: `GET /habits/:id/analytics` (FR-041), `GET /habits/:id/calendar?from&to` (FR-042, max 365 days, no cache), `GET /analytics` (FR-043). All in `AnalyticsModule`.
+
+---
+
+## WP6 implementation notes
+
+- **RecommendationWorkerService**: consumer group `habitlab-recommendations` on stream `habitlab:events`. Same XREADGROUP pattern as analytics worker. Idempotency via `processed_events(event_id, 'recommendations-worker')`. Skips evaluation if `habit_analytics` row absent (logs WARN).
+- **6 rules** (all in `modules/recommendations/rules/`): `reschedule` (best_hour vs preferred_time ≥2h diff, priority 70), `reduce_difficulty` (rate30d<0.4 && difficulty≥3, priority 80), `streak_celebration` (streak%7===0, priority 60), `encouragement_after_skip` (2+ skips in 3 days, priority 75), `consistency_reinforcement` (rate30d>0.8 && streak>14, priority 65), `retroactive_logging_reminder` (no logs in 3 days, priority 85).
+- **Cooldown (FR-053)**: `hasCooldownActive(userId, habitId, category)` — checks `recommendations` table for same `(user_id, habit_id, category)` in last 14 days. Applies on both new generation and after dismiss (dismiss reuses the same record's `created_at`).
+- **accept action_payload**: `reschedule` category sets `action_payload: { preferred_time: "HH:00" }`. `accept()` applies it atomically: `UPDATE habits SET preferred_time = $1`.
+- **Dashboard**: `GET /dashboard` queries `recommendations WHERE status='active' ORDER BY priority DESC LIMIT 3` directly (no cache, no circular import — raw SQL via `DataSource`).
+- **Migration**: `1745400000000-RecommendationsSchema.ts`. ENUMs + table DDL verbatim §5.1.11. `down()` empty (forward-only).
+- **LLM columns** (`llm_model`, `llm_tokens_input`, etc.): present in entity/table, always NULL in WP6. WP7 populates them.
+- **experiment_variant**: NULL in WP6; WP8 writes variant at recommendation creation time.
+
+---
+
+## WP7 implementation notes
+
+- **LLMProvider interface**: `complete(prompt): Promise<LLMResponse | null>`. `LLMResponse` carries `{ text, model, tokensInput, tokensOutput, costCents }`. Null return = provider unavailable → caller uses template fallback.
+- **NullLlmProvider**: always returns null. Active when `NODE_ENV=test` OR `OPENAI_API_KEY` is absent (same `shouldUseStub()` gate as broker/cache).
+- **OpenAILlmProvider**: `gpt-4o-mini` (override via `OPENAI_MODEL`), temp=0.3, max_tokens=150, timeout=8000ms, 1 retry on 429/5xx with 2s backoff. Retry handled manually (not via SDK) for circuit-breaker awareness.
+- **Cost constants** (gpt-4o-mini): input 0.015 cent/1K tokens, output 0.060 cent/1K tokens. `OPENAI_DAILY_BUDGET_CENTS` env (default 300 = $3).
+- **LLM gate order** (§6.3.1, any fail → template): (1) `ai_recommendations_enabled`, (2) circuit breaker, (3) per-user daily quota ≥ 3, (4) system budget.
+- **Per-user quota**: DB-based `COUNT(*) WHERE source='ai' AND created_at > now() - interval '1 day'`. Max 3. Testable without Redis.
+- **System budget**: Redis `INCRBYFLOAT llm:cost:cents:{YYYY-MM-DD}`. Redis null (test) → check skipped.
+- **Circuit breaker**: `llm:circuit:errors` INCR + 60s EXPIRE on each error; ≥5 → SET `llm:circuit:open` EX 300. Success → DEL error counter. Redis null → both checks skipped.
+- **Safety filter** (`applySafetyFilter`, pure fn, §6.3.3): (1) >280 chars → truncate at last sentence boundary or null, (2) medical keywords → null, (3) structural refusal / ends with `?` / contains URL → null.
+- **Prompt builder** (`buildLlmPrompt`, pure fn, §6.3.2): derives bestWeekday/worstWeekday from `completionByWeekday` array, bestHour from `completionByHour` array; all-zeros → "no clear pattern". Locale-aware weekday names: `en`/`tr`.
+- **InsertData** extended: optional `source`, `llmModel`, `llmTokensInput`, `llmTokensOutput`, `llmCostCents` (all `T | undefined` for `exactOptionalPropertyTypes` compliance).
+- **No migration**: LLM columns (`llm_model`, `llm_tokens_input`, `llm_tokens_output`, `llm_cost_cents`) already present in WP6 table DDL — always NULL until WP7 worker populates them.

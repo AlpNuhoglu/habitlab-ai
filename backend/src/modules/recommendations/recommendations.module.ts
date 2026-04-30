@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { HabitAnalytics } from '../analytics/entities/habit-analytics.entity';
+import { ExperimentsModule } from '../experiments/experiments.module';
 import { Recommendation } from './entities/recommendation.entity';
 import { LlmCostService } from './llm-cost.service';
 import { RecommendationRepository } from './recommendation.repository';
@@ -11,7 +12,7 @@ import { RecommendationsService } from './recommendations.service';
 import { RuleEngineService } from './rule-engine.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Recommendation, HabitAnalytics])],
+  imports: [TypeOrmModule.forFeature([Recommendation, HabitAnalytics]), ExperimentsModule],
   providers: [
     RecommendationWorkerService,
     RecommendationsService,

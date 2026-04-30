@@ -10,6 +10,7 @@ import { CacheKeys } from '../../infrastructure/cache/cache-keys';
 import { CACHE_SERVICE, ICacheService } from '../../infrastructure/cache/cache.interface';
 import { LLM_PROVIDER, LLMProvider } from '../../infrastructure/llm/llm-provider.interface';
 import { HabitAnalytics } from '../analytics/entities/habit-analytics.entity';
+import { AssignmentService } from '../experiments/assignment.service';
 import { LlmCostService } from './llm-cost.service';
 import { buildLlmPrompt } from './llm-prompt.builder';
 import { applySafetyFilter } from './llm-safety.filter';
@@ -44,6 +45,7 @@ export class RecommendationWorkerService implements OnModuleInit, OnModuleDestro
     private readonly recommendationRepo: RecommendationRepository,
     private readonly llmCost: LlmCostService,
     private readonly config: ConfigService,
+    private readonly assignmentService: AssignmentService,
   ) {}
 
   onModuleInit(): void {
@@ -67,6 +69,15 @@ export class RecommendationWorkerService implements OnModuleInit, OnModuleDestro
     if (!habitId) {
       this.logger.warn(`${event.eventType} has no aggregateId — skipping`);
       return;
+    }
+
+    // §WP8 — resolve before opening the main transaction; getOrAssignIfActive has its own tx.
+    // try/catch: experiments table may not exist if WP8 migration hasn't been applied yet.
+    let experimentVariant: string | null = null;
+    try {
+      experimentVariant = await this.assignmentService.getOrAssignIfActive(userId, 'rec_copy_v1');
+    } catch (err) {
+      this.logger.warn(`Could not resolve experiment variant for ${userId}: ${String(err)}`);
     }
 
     let inserted = false;
@@ -173,6 +184,7 @@ export class RecommendationWorkerService implements OnModuleInit, OnModuleDestro
             priority: result.priority,
             actionPayload: result.actionPayload ?? null,
             source: insertData.source,
+            experimentVariant,
             llmModel: insertData.llmModel,
             llmTokensInput: insertData.llmTokensInput,
             llmTokensOutput: insertData.llmTokensOutput,

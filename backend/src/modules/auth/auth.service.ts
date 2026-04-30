@@ -457,6 +457,9 @@ export class AuthService {
       ...(dto.displayName !== undefined ? { displayName: dto.displayName } : {}),
       ...(dto.timezone !== undefined ? { timezone: dto.timezone } : {}),
       ...(dto.locale !== undefined ? { locale: dto.locale } : {}),
+      ...(dto.experimentsOptedOut !== undefined
+        ? { preferences: { experiments_opted_out: dto.experimentsOptedOut } }
+        : {}),
     });
     if (!updated) throw new UnauthorizedException({ code: 'TOKEN_INVALID', message: 'User not found.' });
     const { passwordHash: _pw, ...safe } = updated;

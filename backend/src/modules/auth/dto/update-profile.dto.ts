@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 
 import { IsIANATimezone } from './register.dto';
 
@@ -19,4 +19,9 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsIn(['en', 'tr'])
   locale?: string;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  experimentsOptedOut?: boolean;
 }

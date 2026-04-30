@@ -15,7 +15,8 @@
     "migrate": "typeorm-ts-node-commonjs migration:run -d src/data-source.ts",
     "migrate:create": "typeorm-ts-node-commonjs migration:create",
     "migrate:generate": "typeorm-ts-node-commonjs migration:generate -d src/data-source.ts",
-    "migrate:revert": "typeorm-ts-node-commonjs migration:revert -d src/data-source.ts"
+    "migrate:revert": "typeorm-ts-node-commonjs migration:revert -d src/data-source.ts",
+    "cli": "ts-node -r tsconfig-paths/register src/cli/cli.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.4",

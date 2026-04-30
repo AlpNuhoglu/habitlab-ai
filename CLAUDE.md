@@ -80,7 +80,7 @@ Track which WP is active. Check the box when a WP is done and the project ships 
 - [x] **WP5** — Analytics worker, `user_analytics` + `habit_analytics` tables, Redis cache.
 - [x] **WP6** — Rule-based recommendation engine.
 - [x] **WP7** — LLM augmentation with safety filter + cost controls.
-- [ ] **WP8** — A/B testing subsystem (assignment, exposure logging, analysis SQL).
+- [x] **WP8** — A/B testing subsystem (assignment, exposure logging, analysis SQL).
 - [ ] **WP9** — Web push notifications with variant-aware copy.
 - [ ] **WP10** — Observability + production deployment.
 
@@ -159,3 +159,19 @@ Before touching the database schema, check the analysis report section 5.1 — t
 - **Prompt builder** (`buildLlmPrompt`, pure fn, §6.3.2): derives bestWeekday/worstWeekday from `completionByWeekday` array, bestHour from `completionByHour` array; all-zeros → "no clear pattern". Locale-aware weekday names: `en`/`tr`.
 - **InsertData** extended: optional `source`, `llmModel`, `llmTokensInput`, `llmTokensOutput`, `llmCostCents` (all `T | undefined` for `exactOptionalPropertyTypes` compliance).
 - **No migration**: LLM columns (`llm_model`, `llm_tokens_input`, `llm_tokens_output`, `llm_cost_cents`) already present in WP6 table DDL — always NULL until WP7 worker populates them.
+
+---
+
+## WP8 implementation notes
+
+- **Migration**: `1745500000000-ExperimentsSchema.ts`. Creates `experiment_status` ENUM + `experiments` + `experiment_assignments` tables verbatim §5.1.10. `down()` empty (forward-only).
+- **ExperimentRepository**: plain `@Injectable()`, NOT `UserScopedRepository` — `experiments` table has no `user_id`. All methods global. Exports `AssignmentService` and itself from `ExperimentsModule`.
+- **AssignmentService.getOrAssign(userId, experimentKey)**: lazy assignment — looks up experiment, checks opt-out, checks existing assignment, then SHA-256 hash if new. Returns `'control'` (no DB write) when experiment not found / not running / user opted out.
+- **AssignmentService.getOrAssignIfActive(userId, experimentKey)**: returns `null` (not `'control'`) when experiment not running — used by recommendation worker so `experiment_variant` stays NULL on inactive experiments.
+- **SHA-256 algorithm** (§6.5.1): `createHash('sha256').update('${userId}:${experimentKey}').digest()` → `readBigUInt64BE(0)` → `% BigInt(sum(weights))` → walk variants with cumulative sum.
+- **Exposure event**: `GET /experiments/variant` emits fire-and-forget `experiment.exposure` events per key via plain `dataSource.query()` (not in a transaction). Payload: `{ experimentKey, variantKey }`.
+- **Opt-out**: `PATCH /me/preferences { experiments_opted_out: true }` (WP2 endpoint). No new assignments written; opted-out users always get `variants[0].key` (control).
+- **Rec worker integration**: `AssignmentService.getOrAssignIfActive(userId, 'rec_copy_v1')` called BEFORE the outer `dataSource.transaction()` (avoids nested transactions). Result stored in `experimentVariant` field of every recommendation INSERT.
+- **InsertData** extended: optional `experimentVariant?: string | null | undefined`.
+- **CLI**: `pnpm cli <command> [options]` via `ts-node -r tsconfig-paths/register src/cli/cli.ts`. Commands: `experiment:create --file`, `experiment:start --key`, `experiment:pause --key`, `experiment:analyze --key`. No new npm dependencies.
+- **Analysis z-test**: computed in TypeScript from SQL-returned `(n, retained_n)` pairs. `p_pool = (r1+r2)/(n1+n2)`, `z = diff / sqrt(p_pool*(1-p_pool)*(1/n1+1/n2))`, 95% CI via ±1.96·se_diff.

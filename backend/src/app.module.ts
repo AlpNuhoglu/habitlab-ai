@@ -11,11 +11,10 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { EventsModule } from './modules/events/events.module';
 import { HabitsModule } from './modules/habits/habits.module';
+import { ExperimentsModule } from './modules/experiments/experiments.module';
 import { RecommendationsModule } from './modules/recommendations/recommendations.module';
 
-// Subsequent feature modules will be uncommented in their respective WPs:
-//   ExperimentsModule     ← WP8
-//   NotificationsModule   ← WP9
+// NotificationsModule will be uncommented in WP9
 
 @Module({
   imports: [
@@ -40,6 +39,7 @@ import { RecommendationsModule } from './modules/recommendations/recommendations
     HabitsModule,
     EventsModule,
     AnalyticsModule,
+    ExperimentsModule,
     RecommendationsModule,
   ],
   controllers: [HealthController],

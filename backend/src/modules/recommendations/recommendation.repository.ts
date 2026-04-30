@@ -15,6 +15,7 @@ interface InsertData {
   priority: number;
   actionPayload: Record<string, unknown> | null;
   source?: 'rule' | 'ai';
+  experimentVariant?: string | null | undefined;
   llmModel?: string | undefined;
   llmTokensInput?: number | undefined;
   llmTokensOutput?: number | undefined;
@@ -71,8 +72,8 @@ export class RecommendationRepository extends UserScopedRepository<Recommendatio
     const rows = await em.query<Array<Record<string, unknown>>>(
       `INSERT INTO recommendations
          (user_id, habit_id, source, category, title, body, priority, action_payload,
-          llm_model, llm_tokens_input, llm_tokens_output, llm_cost_cents)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          experiment_variant, llm_model, llm_tokens_input, llm_tokens_output, llm_cost_cents)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
       [
         data.userId,
@@ -83,6 +84,7 @@ export class RecommendationRepository extends UserScopedRepository<Recommendatio
         data.body,
         data.priority,
         data.actionPayload !== null ? JSON.stringify(data.actionPayload) : null,
+        data.experimentVariant ?? null,
         data.llmModel ?? null,
         data.llmTokensInput ?? null,
         data.llmTokensOutput ?? null,

@@ -1,0 +1,1153 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "HealthController_health",
+        "summary": "Liveness probe. Always 200 while the process is alive.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/ready": {
+      "get": {
+        "operationId": "HealthController_ready",
+        "summary": "Readiness probe. 503 if Postgres or Redis unreachable.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "operationId": "AuthController_register",
+        "summary": "Register a new user (FR-001)",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "User created; verification email sent."
+          },
+          "400": {
+            "description": "Validation error or CONSENT_REQUIRED."
+          },
+          "409": {
+            "description": "EMAIL_TAKEN."
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/verify": {
+      "get": {
+        "operationId": "AuthController_verifyEmail",
+        "summary": "Verify email address (FR-002)",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Email verified."
+          },
+          "400": {
+            "description": "TOKEN_INVALID or already verified."
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "operationId": "AuthController_login",
+        "summary": "Log in with email + password (FR-003)",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful; cookies set."
+          },
+          "401": {
+            "description": "INVALID_CREDENTIALS."
+          },
+          "403": {
+            "description": "EMAIL_NOT_VERIFIED."
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "operationId": "AuthController_refresh",
+        "summary": "Rotate refresh token (FR-004)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Tokens rotated; new cookies set."
+          },
+          "401": {
+            "description": "TOKEN_INVALID, TOKEN_EXPIRED, or TOKEN_REUSED."
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "AuthController_logout",
+        "summary": "Log out and revoke refresh token (FR-005)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Logged out."
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/password/forgot": {
+      "post": {
+        "operationId": "AuthController_forgotPassword",
+        "summary": "Request password reset link (FR-006)",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotPasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Always 200 (enumeration protection)."
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/password/reset": {
+      "post": {
+        "operationId": "AuthController_resetPassword",
+        "summary": "Complete password reset with token (FR-007)",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password reset."
+          },
+          "400": {
+            "description": "TOKEN_INVALID or expired."
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/password/change": {
+      "post": {
+        "operationId": "AuthController_changePassword",
+        "summary": "Change password while authenticated (FR-008)",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password changed; other sessions revoked."
+          },
+          "401": {
+            "description": "INVALID_CREDENTIALS."
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "operationId": "MeController_getMe",
+        "summary": "Get authenticated user profile (FR-009)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "User profile."
+          },
+          "401": {
+            "description": "Not authenticated."
+          }
+        },
+        "tags": [
+          "me"
+        ]
+      },
+      "patch": {
+        "operationId": "MeController_patchMe",
+        "summary": "Update authenticated user profile (FR-009)",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated profile."
+          },
+          "401": {
+            "description": "Not authenticated."
+          }
+        },
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/api/v1/me/delete": {
+      "post": {
+        "operationId": "MeController_deleteMe",
+        "summary": "Request account deletion (FR-010) — not yet implemented",
+        "parameters": [],
+        "responses": {
+          "501": {
+            "description": "Not implemented."
+          }
+        },
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/api/v1/me/export": {
+      "post": {
+        "operationId": "MeController_exportMe",
+        "summary": "Export personal data (FR-010) — not yet implemented",
+        "parameters": [],
+        "responses": {
+          "501": {
+            "description": "Not implemented."
+          }
+        },
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/api/v1/habits": {
+      "get": {
+        "operationId": "HabitsController_list",
+        "summary": "List habits (FR-021)",
+        "parameters": [
+          {
+            "name": "include_archived",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "habits"
+        ]
+      },
+      "post": {
+        "operationId": "HabitsController_create",
+        "summary": "Create habit (FR-020)",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateHabitDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          },
+          "400": {
+            "description": "Validation error"
+          }
+        },
+        "tags": [
+          "habits"
+        ]
+      }
+    },
+    "/api/v1/habits/{id}": {
+      "get": {
+        "operationId": "HabitsController_getOne",
+        "summary": "Get habit with computed stats (FR-022)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "404": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "habits"
+        ]
+      },
+      "patch": {
+        "operationId": "HabitsController_update",
+        "summary": "Partial update habit (FR-023)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateHabitDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "habits"
+        ]
+      },
+      "delete": {
+        "operationId": "HabitsController_remove",
+        "summary": "Archive or hard-delete habit (FR-024/025)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "hard",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "409": {
+            "description": "HARD_DELETE_LIMIT"
+          }
+        },
+        "tags": [
+          "habits"
+        ]
+      }
+    },
+    "/api/v1/habits/{id}/unarchive": {
+      "post": {
+        "operationId": "HabitsController_unarchive",
+        "summary": "Unarchive habit (FR-024)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "habits"
+        ]
+      }
+    },
+    "/api/v1/habits/{id}/log": {
+      "post": {
+        "operationId": "HabitsController_logHabit",
+        "summary": "Log habit completion or skip (FR-030/031)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogHabitDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated (idempotent)"
+          },
+          "201": {
+            "description": "Created"
+          },
+          "409": {
+            "description": "HABIT_ARCHIVED"
+          }
+        },
+        "tags": [
+          "habits"
+        ]
+      }
+    },
+    "/api/v1/habits/{id}/log/{date}": {
+      "delete": {
+        "operationId": "HabitsController_removeLog",
+        "summary": "Remove log for a date (FR-033)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "date",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "habits"
+        ]
+      },
+      "patch": {
+        "operationId": "HabitsController_updateLogNote",
+        "summary": "Edit log note (FR-034)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "date",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateLogDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "habits"
+        ]
+      }
+    },
+    "/api/v1/dashboard": {
+      "get": {
+        "operationId": "DashboardController_getDashboard",
+        "summary": "Dashboard summary (FR-040)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "dashboard"
+        ]
+      }
+    },
+    "/api/v1/habits/{id}/analytics": {
+      "get": {
+        "operationId": "AnalyticsController_getHabitAnalytics",
+        "summary": "Per-habit analytics (FR-041)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          },
+          "404": {
+            "description": "Analytics not yet computed for this habit"
+          }
+        },
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/habits/{id}/calendar": {
+      "get": {
+        "operationId": "AnalyticsController_getCalendar",
+        "summary": "Habit log calendar heatmap (FR-042)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": true,
+            "in": "query",
+            "description": "YYYY-MM-DD",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": true,
+            "in": "query",
+            "description": "YYYY-MM-DD",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics": {
+      "get": {
+        "operationId": "AnalyticsController_getGlobalAnalytics",
+        "summary": "Global cross-habit analytics (FR-043)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/experiments/variant": {
+      "get": {
+        "operationId": "ExperimentsController_getVariants",
+        "summary": "Resolve variant assignments for one or more experiment keys (FR-072)",
+        "parameters": [
+          {
+            "name": "keys",
+            "required": true,
+            "in": "query",
+            "description": "Comma-separated experiment keys",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Map of experimentKey → variantKey"
+          }
+        },
+        "tags": [
+          "experiments"
+        ]
+      }
+    },
+    "/api/v1/recommendations": {
+      "get": {
+        "operationId": "RecommendationsController_listActive",
+        "summary": "List active recommendations (FR-050)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "recommendations"
+        ]
+      }
+    },
+    "/api/v1/recommendations/{id}/dismiss": {
+      "post": {
+        "operationId": "RecommendationsController_dismiss",
+        "summary": "Dismiss a recommendation (FR-051)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "recommendations"
+        ]
+      }
+    },
+    "/api/v1/recommendations/{id}/accept": {
+      "post": {
+        "operationId": "RecommendationsController_accept",
+        "summary": "Accept a recommendation (FR-052)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "recommendations"
+        ]
+      }
+    },
+    "/api/v1/notifications/subscriptions": {
+      "post": {
+        "operationId": "NotificationsController_subscribe",
+        "summary": "Register a push subscription (FR-060)",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubscribeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Existing subscription updated (same endpoint)"
+          },
+          "201": {
+            "description": "New subscription created"
+          }
+        },
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/subscriptions/{id}": {
+      "delete": {
+        "operationId": "NotificationsController_unsubscribe",
+        "summary": "Remove a push subscription (FR-061)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Subscription removed"
+          },
+          "404": {
+            "description": "Subscription not found or not owned by caller"
+          }
+        },
+        "tags": [
+          "notifications"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "HabitLab AI API",
+    "description": "REST API for HabitLab AI. See docs/HabitLab_AI_Analysis_Report.docx §6.1.",
+    "version": "1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "cookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "access_token"
+      }
+    },
+    "schemas": {
+      "RegisterDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "user@example.com"
+          },
+          "password": {
+            "type": "string",
+            "description": "Min 8 chars, at least 1 letter and 1 digit"
+          },
+          "timezone": {
+            "type": "string",
+            "example": "Europe/Istanbul"
+          },
+          "locale": {
+            "type": "string",
+            "enum": [
+              "en",
+              "tr"
+            ]
+          },
+          "consentGiven": {
+            "type": "boolean",
+            "description": "Must be true; false returns 400 CONSENT_REQUIRED"
+          }
+        },
+        "required": [
+          "email",
+          "password",
+          "timezone",
+          "locale",
+          "consentGiven"
+        ]
+      },
+      "LoginDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "user@example.com"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
+      },
+      "ForgotPasswordDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "user@example.com"
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "ResetPasswordDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "newPassword": {
+            "type": "string",
+            "description": "Min 8 chars, at least 1 letter and 1 digit"
+          }
+        },
+        "required": [
+          "token",
+          "newPassword"
+        ]
+      },
+      "ChangePasswordDto": {
+        "type": "object",
+        "properties": {
+          "currentPassword": {
+            "type": "string"
+          },
+          "newPassword": {
+            "type": "string",
+            "description": "Min 8 chars, at least 1 letter and 1 digit"
+          }
+        },
+        "required": [
+          "currentPassword",
+          "newPassword"
+        ]
+      },
+      "UpdateProfileDto": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "object",
+            "example": "Alp",
+            "maxLength": 100
+          },
+          "timezone": {
+            "type": "string",
+            "example": "Europe/Istanbul"
+          },
+          "locale": {
+            "type": "string",
+            "enum": [
+              "en",
+              "tr"
+            ]
+          },
+          "experimentsOptedOut": {
+            "type": "boolean",
+            "example": true
+          }
+        }
+      },
+      "CreateHabitDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "1–120 characters",
+            "example": "Meditate 10 min"
+          },
+          "description": {
+            "type": "object",
+            "description": "Up to 500 characters"
+          },
+          "frequencyType": {
+            "type": "string",
+            "enum": [
+              "daily",
+              "weekly",
+              "custom"
+            ]
+          },
+          "weekdayMask": {
+            "type": "object",
+            "description": "Bit 0=Mon..bit 6=Sun; required when frequencyType=weekly",
+            "example": 21
+          },
+          "targetCountPerWeek": {
+            "type": "object",
+            "description": "1–7; required when frequencyType=custom",
+            "example": 3
+          },
+          "preferredTime": {
+            "type": "object",
+            "description": "HH:MM in user local time",
+            "example": "07:00"
+          },
+          "difficulty": {
+            "type": "number",
+            "description": "1 (easy) .. 5 (hard)",
+            "default": 3
+          }
+        },
+        "required": [
+          "name",
+          "frequencyType"
+        ]
+      },
+      "UpdateHabitDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "1–120 characters",
+            "example": "Meditate 10 min"
+          },
+          "description": {
+            "type": "object",
+            "description": "Up to 500 characters"
+          },
+          "frequencyType": {
+            "type": "string",
+            "enum": [
+              "daily",
+              "weekly",
+              "custom"
+            ]
+          },
+          "weekdayMask": {
+            "type": "object",
+            "description": "Bit 0=Mon..bit 6=Sun; required when frequencyType=weekly",
+            "example": 21
+          },
+          "targetCountPerWeek": {
+            "type": "object",
+            "description": "1–7; required when frequencyType=custom",
+            "example": 3
+          },
+          "preferredTime": {
+            "type": "object",
+            "description": "HH:MM in user local time",
+            "example": "07:00"
+          },
+          "difficulty": {
+            "type": "number",
+            "description": "1 (easy) .. 5 (hard)",
+            "default": 3
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        }
+      },
+      "LogHabitDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "skipped"
+            ]
+          },
+          "date": {
+            "type": "string",
+            "description": "YYYY-MM-DD; defaults to today in user's timezone",
+            "example": "2026-04-22"
+          },
+          "note": {
+            "type": "string",
+            "description": "Max 500 characters"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "UpdateLogDto": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "description": "Max 500 characters"
+          }
+        },
+        "required": [
+          "note"
+        ]
+      },
+      "PushKeysDto": {
+        "type": "object",
+        "properties": {
+          "p256dh": {
+            "type": "string",
+            "description": "P-256 DH public key from the push subscription"
+          },
+          "auth": {
+            "type": "string",
+            "description": "Auth secret from the push subscription"
+          }
+        },
+        "required": [
+          "p256dh",
+          "auth"
+        ]
+      },
+      "SubscribeDto": {
+        "type": "object",
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "description": "Push endpoint URL from the browser PushSubscription"
+          },
+          "keys": {
+            "$ref": "#/components/schemas/PushKeysDto"
+          },
+          "userAgent": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "endpoint",
+          "keys"
+        ]
+      }
+    }
+  }
+}

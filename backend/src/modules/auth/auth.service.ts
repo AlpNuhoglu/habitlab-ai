@@ -15,6 +15,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { DataSource, EntityManager } from 'typeorm';
 
+import { AuditService } from '../../infrastructure/audit/audit.service';
 import { TokenPair } from '../../common/helpers/cookie.helper';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -64,6 +65,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     @Inject(ConfigService)
     private readonly config: ConfigService,
+    private readonly audit: AuditService,
   ) {}
 
   // ─── Register (FR-001) ────────────────────────────────────────────────────
@@ -343,6 +345,8 @@ export class AuthService {
         payload: { method: 'change' },
       });
     });
+
+    this.audit.log({ userId, action: 'user.password_changed', targetType: 'user', targetId: userId });
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────

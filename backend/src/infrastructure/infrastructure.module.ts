@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 
+import { AuditService } from './audit/audit.service';
 import { BROKER_ADAPTER } from './broker/broker-adapter.interface';
 import { REDIS_CLIENT, RedisStreamsBrokerAdapter } from './broker/redis-streams-broker.adapter';
 import { StubBrokerAdapter } from './broker/stub-broker.adapter';
@@ -11,6 +12,11 @@ import { RedisCacheAdapter } from './cache/redis-cache.adapter';
 import { LLM_PROVIDER } from './llm/llm-provider.interface';
 import { NullLlmProvider } from './llm/null-llm.provider';
 import { OpenAILlmProvider } from './llm/openai-llm.provider';
+import { AppLoggerService } from './logger/app-logger.service';
+import { HttpLoggingInterceptor } from './logger/http-logging.interceptor';
+import { MetricsController } from './metrics/metrics.controller';
+import { MetricsInterceptor } from './metrics/metrics.interceptor';
+import { MetricsService } from './metrics/metrics.service';
 
 function shouldUseStub(config: ConfigService): boolean {
   // process.env.NODE_ENV is set to 'test' by Jest before any module initialises.
@@ -21,7 +27,13 @@ function shouldUseStub(config: ConfigService): boolean {
 
 @Global()
 @Module({
+  controllers: [MetricsController],
   providers: [
+    AppLoggerService,
+    HttpLoggingInterceptor,
+    MetricsService,
+    MetricsInterceptor,
+    AuditService,
     {
       provide: REDIS_CLIENT,
       useFactory: (config: ConfigService): Redis | null => {
@@ -57,6 +69,15 @@ function shouldUseStub(config: ConfigService): boolean {
       inject: [ConfigService],
     },
   ],
-  exports: [BROKER_ADAPTER, REDIS_CLIENT, CACHE_SERVICE, LLM_PROVIDER],
+  exports: [
+    BROKER_ADAPTER,
+    REDIS_CLIENT,
+    CACHE_SERVICE,
+    LLM_PROVIDER,
+    AppLoggerService,
+    MetricsService,
+    MetricsInterceptor,
+    AuditService,
+  ],
 })
 export class InfrastructureModule {}

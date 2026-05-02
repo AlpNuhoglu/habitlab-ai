@@ -30,16 +30,37 @@ pnpm db:up
 
 # 3. Copy the env template and fill in local-dev values
 cp .env.example .env
-# (edit .env — for Phase 1 only DATABASE_URL, REDIS_URL, and the two JWT_* secrets matter)
+# Edit .env — at minimum: DATABASE_URL, REDIS_URL, JWT_ACCESS_SECRET, JWT_REFRESH_SECRET
 
-# 4. Apply DB migrations (once WP2 lands, not needed before that)
-# pnpm migrate
+# 4. Apply DB migrations
+pnpm --filter backend migrate
 
 # 5. Start the dev servers (backend + frontend)
 pnpm dev
 ```
 
-Backend: http://localhost:3001  ·  Frontend: http://localhost:5173  ·  API docs: http://localhost:3001/api/docs
+| URL | What you see |
+|-----|-------------|
+| http://localhost:3001/health | `{"status":"ok"}` — liveness probe |
+| http://localhost:3001/ready | `{"status":"ok","checks":{...}}` — readiness probe (Postgres + Redis) |
+| http://localhost:3001/metrics | Prometheus metrics endpoint |
+| http://localhost:3001/api/docs | Swagger UI — interactive API explorer |
+| http://localhost:5173 | React frontend SPA |
+
+---
+
+## Running tests
+
+```bash
+# Unit tests (fast, no DB required)
+pnpm --filter backend test
+
+# Integration / e2e tests (requires pnpm db:up first)
+pnpm --filter backend test:e2e
+
+# E2e with coverage report
+pnpm --filter backend test:e2e --coverage
+```
 
 ---
 
@@ -47,32 +68,50 @@ Backend: http://localhost:3001  ·  Frontend: http://localhost:5173  ·  API doc
 
 ```
   Client (React SPA)
-       │ HTTPS + JWT cookie
+       │ HTTPS + JWT httpOnly cookie
        ▼
-  API (NestJS) ───► Postgres (source of truth, append-only events table)
-       │ emits
+  API (NestJS) ──────────────────────────────────────► Postgres
+       │ outbox pattern (same TX as state change)       (source of truth)
        ▼
-  Broker (Redis Streams local / Pub/Sub prod)
-       │
-       ▼
-  Worker tier ───► updates analytics ───► DEL Redis cache ───► calls LLM for recommendations
+  Broker (Redis Streams)
+       ├─► Analytics worker  ──► user_analytics / habit_analytics ──► DEL Redis cache
+       ├─► Recommendation worker ──► rule engine + LLM augmentation ──► recommendations table
+       └─► (Outbox publisher polls & publishes)
+
+  Notification scheduler (60s cron) ──► Web Push API
+  A/B testing (SHA-256 deterministic) ──► experiment_assignments
 ```
 
 See section 3 of the analysis report for the full picture.
 
 ---
 
-## Project status
+## Work package status
 
-This is a work-in-progress. The project ships in three phases:
+| WP | Description | Status |
+|----|-------------|--------|
+| WP1 | Repo scaffolding, docker-compose, CI | ✅ Done |
+| WP2 | Auth: register, verify, login, refresh, logout, password reset | ✅ Done |
+| WP3 | Habit CRUD + daily tracking + basic dashboard | ✅ Done |
+| WP4 | Event log with partitioning, outbox publisher, broker abstraction | ✅ Done |
+| WP5 | Analytics worker, `user_analytics` + `habit_analytics`, Redis cache | ✅ Done |
+| WP6 | Rule-based recommendation engine (6 rules) | ✅ Done |
+| WP7 | LLM augmentation with safety filter + cost controls | ✅ Done |
+| WP8 | A/B testing subsystem (assignment, exposure logging, analysis SQL) | ✅ Done |
+| WP9 | Web push notifications with variant-aware copy | ✅ Done |
+| WP10 | Observability + production readiness | ✅ Done |
 
-| Phase | Weeks | Work packages | Demo-able increment |
-|-------|-------|---------------|---------------------|
-| **1 Foundation** | 1–4  | WP1–WP3 | Working habit tracker with auth (CRUD only) |
-| **2 Event-driven** | 5–9  | WP4–WP6 | Event log, worker-maintained analytics, rule-based recs |
-| **3 Intelligence** | 10–15 | WP7–WP10 | LLM augmentation, A/B tests, notifications, prod deploy |
+---
 
-Current phase: **Phase 3, WP8**.
+## Observability (WP10)
+
+- **Structured logging**: pino JSON logger on every request — `request_id`, `user_id`, `route`, `method`, `status`, `duration_ms`. Sensitive fields auto-redacted.
+- **Prometheus metrics**: `GET /metrics` — RED metrics + 4 business KPIs (`habitlab_events_published_total`, `habitlab_recommendations_generated_total{source}`, `habitlab_notifications_sent_total`, `habitlab_llm_cost_cents_total`).
+- **Health probes**: `GET /health` (liveness) · `GET /ready` (readiness — Postgres + Redis ping, 503 on failure).
+- **Audit log**: `audit_log` table — records `user.password_changed` and `recommendation.accepted` events.
+- **Graceful shutdown**: `SIGTERM` → in-flight requests drain → all workers stop cleanly.
+
+See [`backend/RUNBOOK.md`](./backend/RUNBOOK.md) for operational procedures.
 
 ---
 
@@ -80,9 +119,21 @@ Current phase: **Phase 3, WP8**.
 
 See [`CONTRIBUTING.md`](./CONTRIBUTING.md). In short: one-week sprints, Conventional Commits, trunk-based, CI green before merge.
 
+### Updating the OpenAPI spec
+
+When you change an API endpoint or DTO, regenerate `backend/openapi.json`:
+
+```bash
+pnpm db:up
+pnpm --filter backend generate:openapi
+git add backend/openapi.json
+```
+
+CI will fail if the committed spec drifts from the generated one.
+
 ## Using Claude Code on this repo
 
-[`CLAUDE.md`](./CLAUDE.md) is the context file Claude Code reads automatically every session. It pins the architectural non-negotiables and tells Claude where to find the full spec. If you open the repo in VS Code with the Claude Code extension installed, start any session by confirming that Claude has read `CLAUDE.md` — if not, @-mention it.
+[`CLAUDE.md`](./CLAUDE.md) is the context file Claude Code reads automatically every session. It pins the architectural non-negotiables and tells Claude where to find the full spec.
 
 ## License
 

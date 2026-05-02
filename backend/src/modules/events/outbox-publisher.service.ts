@@ -7,6 +7,7 @@ import {
   BrokerAdapter,
   OutboxEvent,
 } from '../../infrastructure/broker/broker-adapter.interface';
+import { MetricsService } from '../../infrastructure/metrics/metrics.service';
 
 const POLL_INTERVAL_MS = 200;
 const BATCH_SIZE = 100;
@@ -30,6 +31,7 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
     @Inject(BROKER_ADAPTER) private readonly broker: BrokerAdapter,
+    private readonly metrics: MetricsService,
   ) {}
 
   onModuleInit(): void {
@@ -78,6 +80,7 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
           try {
             await this.broker.publish(event);
             publishedIds.push(row.id);
+            this.metrics.eventsPublishedTotal.inc();
           } catch (err) {
             this.logger.error(
               `Failed to publish event ${row.id} (${row.event_type}): ${String(err)}`,

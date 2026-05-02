@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
+import { AuditService } from '../../infrastructure/audit/audit.service';
 import { Recommendation } from './entities/recommendation.entity';
 import { RecommendationRepository } from './recommendation.repository';
 
@@ -40,6 +41,7 @@ export class RecommendationsService {
   constructor(
     private readonly recRepo: RecommendationRepository,
     @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly audit: AuditService,
   ) {}
 
   async listActive(userId: string): Promise<RecommendationDto[]> {
@@ -63,9 +65,15 @@ export class RecommendationsService {
   }
 
   async accept(id: string, userId: string): Promise<void> {
+    let recCategory: string | undefined;
+    let recHabitId: string | null = null;
+
     await this.dataSource.transaction(async (em) => {
       const rec = await this.recRepo.findById(id, userId, em);
       if (!rec) throw new NotFoundException('Recommendation not found');
+
+      recCategory = rec.category;
+      recHabitId = rec.habitId;
 
       await this.recRepo.setStatus(id, userId, 'accepted', em);
 
@@ -88,6 +96,14 @@ export class RecommendationsService {
          VALUES ($1, 'recommendation.accepted', 'recommendation', $2, $3)`,
         [userId, id, JSON.stringify({ category: rec.category, habitId: rec.habitId })],
       );
+    });
+
+    this.audit.log({
+      userId,
+      action: 'recommendation.accepted',
+      targetType: 'recommendation',
+      targetId: id,
+      details: { category: recCategory, habitId: recHabitId },
     });
   }
 }

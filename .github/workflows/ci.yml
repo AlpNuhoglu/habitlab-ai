@@ -55,11 +55,60 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Secret scan
+        run: |
+          # Reject hard-coded secrets: private keys, bearer tokens, or high-entropy assignments.
+          # VAPID/JWT env vars are fine — they come from process.env, not literals.
+          if git grep -rn \
+            -e "BEGIN.*PRIVATE KEY" \
+            -e "PRIVATE_KEY\s*=\s*['\"]" \
+            -e "JWT_.*SECRET\s*=\s*['\"][^'\"]\{8,\}" \
+            -- "*.ts" "*.js" "*.json" ":!*.example*" ":!test/**" ":!*spec*"; then
+            echo "ERROR: possible hard-coded secret detected (see matches above)"
+            exit 1
+          fi
+          echo "Secret scan passed."
+
       - name: Lint
         run: pnpm lint
 
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Test
-        run: pnpm test
+      - name: Unit tests
+        run: pnpm --filter backend test
+
+      - name: Run migrations
+        run: pnpm --filter backend migrate
+
+      - name: E2E tests with coverage
+        run: pnpm --filter backend test:e2e --coverage
+        env:
+          NODE_ENV: test
+          EMAIL_DRIVER: console
+
+      - name: OpenAPI drift check
+        run: |
+          # Generate fresh spec from the running codebase (needs migrated DB above).
+          NODE_ENV=development pnpm --filter backend generate:openapi
+          # If openapi.json is tracked, ensure it hasn't drifted.
+          if git ls-files --error-unmatch backend/openapi.json 2>/dev/null; then
+            if ! git diff --exit-code backend/openapi.json; then
+              echo "ERROR: backend/openapi.json is out of date."
+              echo "Run: pnpm db:up && pnpm --filter backend generate:openapi"
+              echo "Then commit the updated openapi.json."
+              exit 1
+            fi
+          else
+            echo "WARNING: backend/openapi.json not committed yet."
+            echo "Run pnpm --filter backend generate:openapi locally and commit the file."
+          fi
+        env:
+          NODE_ENV: development
+          DATABASE_URL: postgresql://habitlab:habitlab_ci@localhost:5432/habitlab_ci
+          REDIS_URL: redis://localhost:6379
+          JWT_ACCESS_SECRET: test_access_secret_do_not_use_in_production
+          JWT_REFRESH_SECRET: test_refresh_secret_do_not_use_in_production
+
+      - name: Staging deploy
+        run: echo "staging deploy placeholder — Cloud Run deploy goes here (WP10 post-MVP)"

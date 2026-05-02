@@ -6,13 +6,15 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 
 import { AppModule } from './app.module';
+import { AppLoggerService } from './infrastructure/logger/app-logger.service';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, {
-    // Structured logging is wired up in AppModule via nest-winston.
-    // Default logger is kept off here; AppModule replaces it.
-    logger: ['error', 'warn', 'log'],
-  });
+  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+
+  const logger = app.get(AppLoggerService);
+  app.useLogger(logger);
+
+  app.enableShutdownHooks();
 
   app.setGlobalPrefix('api/v1', { exclude: ['health', 'ready', 'metrics', 'api/docs'] });
 
@@ -46,10 +48,8 @@ async function bootstrap(): Promise<void> {
 
   const port = Number(process.env.PORT ?? 3001);
   await app.listen(port);
-  // eslint-disable-next-line no-console
-  console.log(`→ HabitLab AI backend listening on http://localhost:${port}`);
-  // eslint-disable-next-line no-console
-  console.log(`→ OpenAPI docs at    http://localhost:${port}/api/docs`);
+  logger.log(`HabitLab AI backend listening on http://localhost:${port}`, 'Bootstrap');
+  logger.log(`OpenAPI docs at http://localhost:${port}/api/docs`, 'Bootstrap');
 }
 
 bootstrap().catch((err) => {

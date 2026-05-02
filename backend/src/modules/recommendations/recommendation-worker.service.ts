@@ -11,6 +11,7 @@ import { CACHE_SERVICE, ICacheService } from '../../infrastructure/cache/cache.i
 import { LLM_PROVIDER, LLMProvider } from '../../infrastructure/llm/llm-provider.interface';
 import { HabitAnalytics } from '../analytics/entities/habit-analytics.entity';
 import { AssignmentService } from '../experiments/assignment.service';
+import { MetricsService } from '../../infrastructure/metrics/metrics.service';
 import { LlmCostService } from './llm-cost.service';
 import { buildLlmPrompt } from './llm-prompt.builder';
 import { applySafetyFilter } from './llm-safety.filter';
@@ -46,6 +47,7 @@ export class RecommendationWorkerService implements OnModuleInit, OnModuleDestro
     private readonly llmCost: LlmCostService,
     private readonly config: ConfigService,
     private readonly assignmentService: AssignmentService,
+    private readonly metrics: MetricsService,
   ) {}
 
   onModuleInit(): void {
@@ -193,6 +195,8 @@ export class RecommendationWorkerService implements OnModuleInit, OnModuleDestro
           em,
         );
         inserted = true;
+        this.metrics.recommendationsGeneratedTotal.inc({ source: insertData.source });
+        if (insertData.llmCostCents) this.metrics.addLlmCost(insertData.llmCostCents);
       }
     });
 

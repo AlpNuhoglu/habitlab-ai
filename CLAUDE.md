@@ -81,8 +81,8 @@ Track which WP is active. Check the box when a WP is done and the project ships 
 - [x] **WP6** — Rule-based recommendation engine.
 - [x] **WP7** — LLM augmentation with safety filter + cost controls.
 - [x] **WP8** — A/B testing subsystem (assignment, exposure logging, analysis SQL).
-- [ ] **WP9** — Web push notifications with variant-aware copy.
-- [ ] **WP10** — Observability + production deployment.
+- [x] **WP9** — Web push notifications with variant-aware copy.
+- [x] **WP10** — Observability + production readiness.
 
 ---
 
@@ -162,6 +162,21 @@ Before touching the database schema, check the analysis report section 5.1 — t
 
 ---
 
+## WP9 implementation notes
+
+- **Migration**: `1745600000000-NotificationsSchema.ts`. Creates `push_subscriptions` + `notifications_sent` tables verbatim §5.1.12. `down()` empty (forward-only).
+- **WebPushService**: wraps `web-push` npm package. VAPID keys from `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` env vars. `isEnabled()` = keys present AND `NODE_ENV !== 'test'`. `send()` returns `'ok' | 'gone' | 'error'`; 410 Gone → `'gone'`, caller deletes subscription. In test/no-key mode: `send()` is a no-op returning `'ok'` (allows full scheduler flow to execute in tests).
+- **Endpoints**: `POST /notifications/subscriptions` (FR-060) — upsert on `endpoint` unique constraint; 201 for new row, 200 for update (detected via PostgreSQL `xmax = 0`). `DELETE /notifications/subscriptions/:id` (FR-061) — user-scoped, 404 if not found.
+- **Quiet hours**: parsed from `preferences.quiet_hours { start, end }` in user's timezone (same `user.timezone` column). Overnight spans handled: if `start > end`, quiet window wraps midnight.
+- **Scheduler** (`NotificationSchedulerService`): `OnModuleInit` starts 60s `setInterval` only when `webPushService.isEnabled()`. `tick()` is public and callable directly in tests (no guard). Algorithm: query active habits with `preferred_time NOT NULL` and at least one `push_subscriptions` row → check ±1 min window in user timezone → check quiet hours → check `notifications_sent` de-dup for today → get `notification_copy_v1` variant via `AssignmentService.getOrAssignIfActive` → render template → send to each subscription → clean up 410 Gone subscriptions → if any `'ok'`: DB transaction (INSERT `notifications_sent` + INSERT `notification.sent` event).
+- **Copy templates** (experiment key `notification_copy_v1`): `control` → `habit_reminder_v1` "Time to complete: {name}"; `motivated` → `habit_reminder_motivated_v1` "Keep the streak going — it's time for: {name}". Inactive experiment → control template.
+- **Notification timing**: fires at `preferred_time` exactly (±1 min). FR-063 -30 min offset deferred — TODO in `notification-scheduler.service.ts`.
+- **Analytics-adjusted offset**: deferred to post-WP9. TODO comment left in scheduler.
+- **De-dup**: `notifications_sent WHERE (sent_at AT TIME ZONE tz)::date = (CURRENT_TIMESTAMP AT TIME ZONE tz)::date` — one notification per habit per calendar day in user's timezone.
+- **No new migration needed for quiet_hours**: already in `preferences` JSONB default since WP2 (`{"start":"22:00","end":"07:00"}`).
+
+---
+
 ## WP8 implementation notes
 
 - **Migration**: `1745500000000-ExperimentsSchema.ts`. Creates `experiment_status` ENUM + `experiments` + `experiment_assignments` tables verbatim §5.1.10. `down()` empty (forward-only).
@@ -175,3 +190,16 @@ Before touching the database schema, check the analysis report section 5.1 — t
 - **InsertData** extended: optional `experimentVariant?: string | null | undefined`.
 - **CLI**: `pnpm cli <command> [options]` via `ts-node -r tsconfig-paths/register src/cli/cli.ts`. Commands: `experiment:create --file`, `experiment:start --key`, `experiment:pause --key`, `experiment:analyze --key`. No new npm dependencies.
 - **Analysis z-test**: computed in TypeScript from SQL-returned `(n, retained_n)` pairs. `p_pool = (r1+r2)/(n1+n2)`, `z = diff / sqrt(p_pool*(1-p_pool)*(1/n1+1/n2))`, 95% CI via ±1.96·se_diff.
+
+---
+
+## WP10 implementation notes
+
+- **Structured logging**: `AppLoggerService` (`infrastructure/logger/`) wraps pino. `RequestIdMiddleware` attaches UUID v4 `X-Request-Id` per request and stores context in `AsyncLocalStorage`. `HttpLoggingInterceptor` logs each HTTP request with `request_id`, `user_id`, `method`, `route`, `status`, `duration_ms`. Sensitive fields (`password`, `token`, `key`, `secret`) redacted via pino's `redact` option.
+- **Prometheus metrics**: `MetricsService` (`infrastructure/metrics/`) owns a dedicated `Registry`. `GET /metrics` (no auth, network-level protection). RED counters/histograms auto-collected via `MetricsInterceptor` (global). Business KPIs incremented inline in outbox publisher, recommendation worker, and notification scheduler.
+- **Health checks**: `/health` always 200 (liveness). `/ready` pings Postgres (`SELECT 1`) and Redis (`PING`); returns 503 if either fails. Redis `null` (test mode) → `'skip'` (not `'fail'`).
+- **Graceful shutdown**: `app.enableShutdownHooks()` in `main.ts`. All workers already implement `OnModuleDestroy`. SIGTERM drains in-flight requests before NestJS destroys the module graph.
+- **Audit log**: `AuditService` (`infrastructure/audit/`) INSERTs fire-and-forget into the existing `audit_log` table. Errors are caught and logged — audit failure never blocks the main operation. Currently hooks: `user.password_changed` (auth service), `recommendation.accepted` (recommendations service).
+- **OpenAPI drift check**: `pnpm --filter backend generate:openapi` (needs running DB). CI regenerates and diffs against committed `backend/openapi.json`. Initial generation: `pnpm db:up && pnpm --filter backend generate:openapi && git add backend/openapi.json`.
+- **Coverage threshold**: E2E tests have a 50% line coverage floor (`backend/test/jest-e2e.json`). TODO: measure actual coverage via `pnpm --filter backend test:e2e --coverage` and raise threshold to 70%.
+- **prom-client**: added as runtime dep `^15.1.3`. No other new runtime deps in WP10.

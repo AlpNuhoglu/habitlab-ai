@@ -23,7 +23,7 @@ export default [
   // DI container need class references at runtime for @Body() params and constructor
   // injection. ESLint can't detect this, so we allow value imports in these files.
   {
-    files: ['src/**/*.controller.ts', 'src/**/*.service.ts', 'src/**/*.guard.ts', 'src/**/*.filter.ts', 'src/**/*.module.ts'],
+    files: ['src/**/*.controller.ts', 'src/**/*.service.ts', 'src/**/*.guard.ts', 'src/**/*.filter.ts', 'src/**/*.module.ts', 'src/**/*.interceptor.ts', 'src/**/*.middleware.ts'],
     rules: {
       '@typescript-eslint/consistent-type-imports': [
         'error',

@@ -19,7 +19,7 @@ export function VerifyEmailPage(): React.ReactElement {
     if (!token || didFire.current) return;
     didFire.current = true;
     verify.mutate(token);
-  }, [token]);
+  }, [token, verify]);
 
   if (verify.isPending || verify.isIdle) {
     return (

@@ -34,6 +34,7 @@ async function generate(): Promise<void> {
   console.log(`OpenAPI spec written to ${outPath}`);
 
   await app.close();
+  process.exit(0);
 }
 
 generate().catch((err) => {

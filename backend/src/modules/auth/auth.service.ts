@@ -16,6 +16,7 @@ import * as bcrypt from 'bcrypt';
 import { DataSource, EntityManager } from 'typeorm';
 
 import { AuditService } from '../../infrastructure/audit/audit.service';
+import { MAIL_SERVICE, MailService } from '../../infrastructure/mail/mail.service';
 import { TokenPair } from '../../common/helpers/cookie.helper';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -66,6 +67,8 @@ export class AuthService {
     @Inject(ConfigService)
     private readonly config: ConfigService,
     private readonly audit: AuditService,
+    @Inject(MAIL_SERVICE)
+    private readonly mailService: MailService,
   ) {}
 
   // ─── Register (FR-001) ────────────────────────────────────────────────────
@@ -115,7 +118,7 @@ export class AuthService {
     });
 
     const verifyToken = this.signEmailVerifyToken(user.id);
-    this.logEmailToken('EMAIL VERIFICATION', user.email, verifyToken);
+    await this.mailService.sendVerificationEmail(user.email, verifyToken);
 
     return { userId: user.id, emailVerificationSent: true };
   }
@@ -156,6 +159,16 @@ export class AuthService {
         payload: {},
       });
     });
+  }
+
+  // ─── Resend verification email ────────────────────────────────────────────
+
+  async resendVerification(email: string): Promise<void> {
+    // Always resolves — never reveals whether the email exists or is already verified
+    const user = await this.userRepo.findByEmail(email);
+    if (!user || user.emailVerifiedAt !== null) return;
+    const token = this.signEmailVerifyToken(user.id);
+    await this.mailService.sendVerificationEmail(user.email, token);
   }
 
   // ─── Login (FR-003) ───────────────────────────────────────────────────────
@@ -270,7 +283,7 @@ export class AuthService {
     if (!user) return;
 
     const resetToken = this.signPasswordResetToken(user.id, user.passwordHash);
-    this.logEmailToken('PASSWORD RESET', user.email, resetToken);
+    await this.mailService.sendPasswordResetEmail(user.email, resetToken);
   }
 
   // ─── Reset password (FR-007) ──────────────────────────────────────────────
@@ -470,11 +483,6 @@ export class AuthService {
     return safe;
   }
 
-  private logEmailToken(kind: string, email: string, token: string): void {
-    this.logger.log(
-      `[EMAIL_DRIVER=console] ${kind} | to=${email} | token=${token}`,
-    );
-  }
 }
 
 function hashToken(raw: string): string {

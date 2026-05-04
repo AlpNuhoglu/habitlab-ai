@@ -20,6 +20,7 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 
 // RequestUser is populated by JwtAuthGuard (wired in ADIM 5).
@@ -66,6 +67,16 @@ export class AuthController {
   async verifyEmail(@Query('token') token: string) {
     await this.authService.verifyEmail(token);
     return { verified: true };
+  }
+
+  @Public()
+  @Post('resend-verification')
+  @HttpCode(202)
+  @ApiOperation({ summary: 'Resend email verification link' })
+  @ApiResponse({ status: 202, description: 'Always 202 (enumeration protection).' })
+  async resendVerification(@Body() dto: ResendVerificationDto) {
+    await this.authService.resendVerification(dto.email);
+    return { message: 'If that email is unverified, a new link has been sent.' };
   }
 
   // TODO(WP5): rate-limit 10 per IP per minute

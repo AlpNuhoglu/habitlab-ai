@@ -113,7 +113,9 @@ export class ExperimentCommands {
 
     console.log(`\nExperiment: ${key}`);
     console.log('─'.repeat(60));
-    console.log(`${'Variant'.padEnd(20)} ${'N'.padStart(8)} ${'Retained'.padStart(10)} ${'Rate'.padStart(8)}`);
+    console.log(
+      `${'Variant'.padEnd(20)} ${'N'.padStart(8)} ${'Retained'.padStart(10)} ${'Rate'.padStart(8)}`,
+    );
     console.log('─'.repeat(60));
 
     const parsed = rows.map((r) => ({
@@ -134,15 +136,19 @@ export class ExperimentCommands {
       const control = parsed[0]!;
       const treatment = parsed[1]!;
       const zResult = this.twoSampleZTest(
-        control.retainedN, control.n,
-        treatment.retainedN, treatment.n,
+        control.retainedN,
+        control.n,
+        treatment.retainedN,
+        treatment.n,
       );
 
       console.log('\n─'.repeat(60));
       console.log(`Two-sample z-test: ${control.variant} vs ${treatment.variant}`);
       console.log(`  Δ retention rate : ${(zResult.diff * 100).toFixed(2)}pp`);
       console.log(`  z-statistic      : ${zResult.z.toFixed(4)}`);
-      console.log(`  95% CI           : [${(zResult.ci[0]! * 100).toFixed(2)}pp, ${(zResult.ci[1]! * 100).toFixed(2)}pp]`);
+      console.log(
+        `  95% CI           : [${(zResult.ci[0]! * 100).toFixed(2)}pp, ${(zResult.ci[1]! * 100).toFixed(2)}pp]`,
+      );
       console.log(`  Significant (p<.05): ${Math.abs(zResult.z) >= 1.96 ? 'YES' : 'NO'}`);
     }
   }
@@ -161,8 +167,10 @@ export class ExperimentCommands {
 
   // §6.5.3 — z-test for two proportions
   private twoSampleZTest(
-    r1: number, n1: number,
-    r2: number, n2: number,
+    r1: number,
+    n1: number,
+    r2: number,
+    n2: number,
   ): { z: number; diff: number; ci: [number, number] } {
     const p1 = n1 > 0 ? r1 / n1 : 0;
     const p2 = n2 > 0 ? r2 / n2 : 0;
@@ -192,4 +200,3 @@ export class ExperimentCommands {
     }
   }
 }
-

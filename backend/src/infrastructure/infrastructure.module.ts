@@ -12,6 +12,7 @@ import { RedisCacheAdapter } from './cache/redis-cache.adapter';
 import { LLM_PROVIDER } from './llm/llm-provider.interface';
 import { NullLlmProvider } from './llm/null-llm.provider';
 import { OpenAILlmProvider } from './llm/openai-llm.provider';
+import { MAIL_SERVICE, NullMailService, ResendMailService } from './mail/mail.service';
 import { AppLoggerService } from './logger/app-logger.service';
 import { HttpLoggingInterceptor } from './logger/http-logging.interceptor';
 import { MetricsController } from './metrics/metrics.controller';
@@ -68,12 +69,27 @@ function shouldUseStub(config: ConfigService): boolean {
       },
       inject: [ConfigService],
     },
+    {
+      provide: MAIL_SERVICE,
+      useFactory: (config: ConfigService) => {
+        const apiKey = config.get<string>('RESEND_API_KEY');
+        if (shouldUseStub(config) || !apiKey) {
+          return new NullMailService();
+        }
+        const from =
+          config.get<string>('EMAIL_FROM') ?? 'HabitLab AI <no-reply@habitlab.ai>';
+        const appUrl = config.get<string>('APP_URL') ?? 'http://localhost:5173';
+        return new ResendMailService(apiKey, from, appUrl);
+      },
+      inject: [ConfigService],
+    },
   ],
   exports: [
     BROKER_ADAPTER,
     REDIS_CLIENT,
     CACHE_SERVICE,
     LLM_PROVIDER,
+    MAIL_SERVICE,
     AppLoggerService,
     MetricsService,
     MetricsInterceptor,

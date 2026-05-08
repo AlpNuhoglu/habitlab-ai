@@ -56,8 +56,11 @@ async function toApiError(res: Response): Promise<ApiError> {
   return { kind: 'server', status };
 }
 
+import type { IdempotencyKey } from './idempotency';
+
 export interface ApiFetchOptions {
   skipRefresh?: boolean;
+  idempotencyKey?: IdempotencyKey;
 }
 
 async function apiFetchImpl<T>(
@@ -65,13 +68,23 @@ async function apiFetchImpl<T>(
   init: RequestInit | undefined,
   isRetry: boolean,
   skipRefresh: boolean,
+  idempotencyKey?: IdempotencyKey,
 ): Promise<T> {
+  if (import.meta.env.DEV && init?.method && init.method !== 'GET') {
+    const hint = idempotencyKey ? ` (idem: ${idempotencyKey.slice(0, 8)}…)` : '';
+    console.debug(`[client] ${init.method} ${path}${hint}`);
+  }
+
   let res: Response;
   try {
     res = await fetch(path, {
       ...init,
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json', ...init?.headers },
+      headers: {
+        'Content-Type': 'application/json',
+        ...init?.headers,
+        ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
+      },
     });
   } catch {
     throw new ApiException({ kind: 'network' });
@@ -84,7 +97,7 @@ async function apiFetchImpl<T>(
 
   if (res.status === 401 && !isRetry && !skipRefresh) {
     await refreshOnce();
-    return apiFetchImpl<T>(path, init, true, skipRefresh);
+    return apiFetchImpl<T>(path, init, true, skipRefresh, idempotencyKey);
   }
 
   throw new ApiException(await toApiError(res));
@@ -95,5 +108,5 @@ export function apiFetch<T>(
   init?: RequestInit,
   options?: ApiFetchOptions,
 ): Promise<T> {
-  return apiFetchImpl<T>(path, init, false, options?.skipRefresh ?? false);
+  return apiFetchImpl<T>(path, init, false, options?.skipRefresh ?? false, options?.idempotencyKey);
 }

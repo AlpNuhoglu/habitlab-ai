@@ -193,6 +193,17 @@ Before touching the database schema, check the analysis report section 5.1 — t
 
 ---
 
+## WP4 frontend implementation notes
+
+- **TP-1 — Idempotency keys**: `IdempotencyKey` branded type + `generateIdempotencyKey()` in `frontend/src/api/idempotency.ts`. `useMutationIdempotency()` hook uses `useRef<IdempotencyKey | null>` — key created on first `getOrCreateKey()` call, cleared in `onSettled`. All 6 `useMutation` hooks wire this pattern. `useToggleLog` uses `useRef<Map<string, IdempotencyKey>>` keyed by `${habitId}:${date}`, mirroring `coalesceToggle`'s pending map — key generated on first click of a debounce window, cleared in `finally`. Backend reads the header for future dedup; frontend retry dedup is the primary value today.
+- **TP-2 — Telemetry sink**: `frontend/src/lib/events/`. `ClientEvent` flat discriminated union (no `payload` wrapper) in `client-event.ts`. `EventSinkProvider` mounted at `App.tsx` root manages flush timer (5s / 50 events) and `pagehide`→`sendBeacon`. `VITE_ENABLE_TELEMETRY=true` required to send network requests; default dev mode logs to console only. `POST /api/v1/events/client` backend endpoint not yet live — 404 silently ignored. `client.performance` type exists in union but has no `emitPerformance` helper (web-vitals integration deferred).
+- **TP-2 offline queue**: vanilla IDB (`habitlab-events` DB, `pending-batches` store, `autoIncrement: true`). Hard cap 1000 events; overflow deletes oldest records by ascending autoIncrement key. Gracefully degrades to in-memory-only if IDB unavailable (private browsing, quota exceeded).
+- **TP-3 — Reconciliation ceiling**: `<1000ms`. `awaitReconciliation<T>` in `frontend/src/lib/reconciliation/reconciliation-window.ts`. Integration test gates on `VITE_RUN_RECONCILIATION_TESTS=true` (CI skip; staging runs on each deploy). Test flow: create habit → log → poll `GET /dashboard` until `todayStatus === 'completed'` within ceiling.
+- **TP-4 — Realtime stub**: `frontend/src/lib/events/use-realtime.ts`. Options-object signature locked in: `useRealtime<T>({ channel, onEvent, enabled? })` returns `{ isConnected: false, disconnect: () => void }`. No network calls. `DashboardPage` has a consumer (`enabled: false`) — wire-up is mechanical when SSE lands. `BroadcastChannel` (WP2) handles cross-tab auth sync; `useRealtime` is the seam for future cross-device sync — they do not overlap.
+- **ESLint**: `frontend/eslint.config.js` restricts `src/features/**` from importing `lib/events/client-event`, `event-sink`, `event-flusher`, or `offline-queue` directly — only `use-emit-event` is the allowed entry point. Branded `IdempotencyKey` type enforces idempotency key safety at compile time.
+
+---
+
 ## WP10 implementation notes
 
 - **Structured logging**: `AppLoggerService` (`infrastructure/logger/`) wraps pino. `RequestIdMiddleware` attaches UUID v4 `X-Request-Id` per request and stores context in `AsyncLocalStorage`. `HttpLoggingInterceptor` logs each HTTP request with `request_id`, `user_id`, `method`, `route`, `status`, `duration_ms`. Sensitive fields (`password`, `token`, `key`, `secret`) redacted via pino's `redact` option.

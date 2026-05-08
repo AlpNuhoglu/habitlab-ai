@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 
+import { AppLayout } from '../components/AppLayout';
 import { AuthLayout } from '../features/auth/components/AuthLayout';
 import { ForgotPasswordPage } from '../features/auth/pages/ForgotPasswordPage';
 import { LoginPage } from '../features/auth/pages/LoginPage';
@@ -8,13 +9,17 @@ import { RegisterCheckEmailPage } from '../features/auth/pages/RegisterCheckEmai
 import { RegisterPage } from '../features/auth/pages/RegisterPage';
 import { ResetPasswordPage } from '../features/auth/pages/ResetPasswordPage';
 import { VerifyEmailPage } from '../features/auth/pages/VerifyEmailPage';
+import { DashboardPage } from '../features/dashboard/pages/DashboardPage';
+import { HabitsPage } from '../features/habits/pages/HabitsPage';
+import { HabitDetailPage } from '../features/habits/pages/HabitDetailPage';
+import { TrackerPage } from '../features/tracking/pages/TrackerPage';
 import { ProtectedRoute } from './ProtectedRoute';
 import { PublicOnlyRoute } from './PublicOnlyRoute';
 
 function PlaceholderPage({ title }: { readonly title: string }): React.ReactElement {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50">
-      <p className="text-sm text-gray-400">{title} — coming in WP3+</p>
+    <div className="flex min-h-[60vh] items-center justify-center">
+      <p className="text-sm text-gray-400">{title} — coming soon</p>
     </div>
   );
 }
@@ -22,10 +27,10 @@ function PlaceholderPage({ title }: { readonly title: string }): React.ReactElem
 export const router = createBrowserRouter([
   { path: '/', element: <Navigate to="/dashboard" replace /> },
 
-  // Logout — no auth guard, must be reachable from any state
+  // Logout — no auth guard
   { path: '/logout', element: <LogoutPage /> },
 
-  // Public-only routes: redirect to /dashboard if already authenticated
+  // Public-only routes
   {
     element: <PublicOnlyRoute />,
     children: [
@@ -43,15 +48,21 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // Protected routes: redirect to /login if not authenticated
+  // Protected routes — wrapped in AppLayout for nav
   {
     element: <ProtectedRoute />,
     children: [
-      { path: '/dashboard', element: <PlaceholderPage title="Dashboard" /> },
-      { path: '/habits', element: <PlaceholderPage title="Habits" /> },
-      { path: '/habits/:id', element: <PlaceholderPage title="Habit detail" /> },
-      { path: '/analytics', element: <PlaceholderPage title="Analytics" /> },
-      { path: '/settings', element: <PlaceholderPage title="Settings" /> },
+      {
+        element: <AppLayout />,
+        children: [
+          { path: '/dashboard', element: <DashboardPage /> },
+          { path: '/habits',    element: <HabitsPage /> },
+          { path: '/habits/:id', element: <HabitDetailPage /> },
+          { path: '/track',     element: <TrackerPage /> },
+          { path: '/analytics', element: <PlaceholderPage title="Analytics" /> },
+          { path: '/settings',  element: <PlaceholderPage title="Settings" /> },
+        ],
+      },
     ],
   },
 

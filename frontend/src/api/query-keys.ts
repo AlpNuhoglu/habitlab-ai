@@ -29,3 +29,9 @@ export const trackerKeys = {
   all: ['tracker'] as const,
   grid: (from: string, to: string) => [...trackerKeys.all, 'grid', { from, to }] as const,
 } as const;
+
+export const analyticsKeys = {
+  all: ['analytics'] as const,
+  global: () => [...analyticsKeys.all, 'global'] as const,
+  habit: (habitId: string) => [...analyticsKeys.all, 'habit', habitId] as const,
+} as const;

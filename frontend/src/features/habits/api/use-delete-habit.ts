@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { ApiException, apiFetch } from '../../../api/client';
 import { useMutationIdempotency } from '../../../api/idempotency';
-import { habitKeys, dashboardKeys } from '../../../api/query-keys';
+import { analyticsKeys, habitKeys, dashboardKeys } from '../../../api/query-keys';
 
 export function useDeleteHabit() {
   const queryClient = useQueryClient();
@@ -19,6 +19,7 @@ export function useDeleteHabit() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: habitKeys.all }),
         queryClient.invalidateQueries({ queryKey: dashboardKeys.summary() }),
+        queryClient.invalidateQueries({ queryKey: analyticsKeys.all }),
       ]);
     },
     onSettled: clearKey,

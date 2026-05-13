@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { ApiException, apiFetch } from '../../../api/client';
 import { useMutationIdempotency } from '../../../api/idempotency';
-import { habitKeys, dashboardKeys } from '../../../api/query-keys';
+import { analyticsKeys, habitKeys, dashboardKeys } from '../../../api/query-keys';
 import type { CreateHabitPayload } from '../lib/habit-form-mapper';
 import type { Habit } from '../types';
 
@@ -21,6 +21,7 @@ export function useCreateHabit() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: habitKeys.lists() }),
         queryClient.invalidateQueries({ queryKey: dashboardKeys.summary() }),
+        queryClient.invalidateQueries({ queryKey: analyticsKeys.global() }),
       ]);
     },
     onSettled: clearKey,

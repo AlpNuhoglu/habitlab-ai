@@ -6,6 +6,25 @@ import reactHooksPlugin from 'eslint-plugin-react-hooks';
 export default [
   { ignores: ['dist/**', 'node_modules/**'] },
   {
+    // recharts must only be imported through lib/recharts/primitives.ts.
+    // This keeps the library API surface narrow and makes a future swap a one-file change.
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/lib/recharts/primitives.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'recharts',
+              message: 'Import recharts via lib/recharts/primitives.ts only.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // features/ must access the event sink only through use-emit-event — never directly.
     // This keeps the sink's internal modules (buffer, flusher, IDB queue) encapsulated.
     files: ['src/features/**/*.{ts,tsx}'],

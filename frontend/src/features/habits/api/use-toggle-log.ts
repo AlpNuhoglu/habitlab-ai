@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { apiFetch } from '../../../api/client';
 import { generateIdempotencyKey, type IdempotencyKey } from '../../../api/idempotency';
-import { habitKeys, dashboardKeys } from '../../../api/query-keys';
+import { analyticsKeys, habitKeys, dashboardKeys } from '../../../api/query-keys';
 import { coalesceToggle } from '../lib/log-coalesce';
 import type { Habit, DashboardSummary, ToggleLogContext } from '../types';
 
@@ -110,6 +110,7 @@ export function useToggleLog() {
           // Reconcile with server truth
           void queryClient.invalidateQueries({ queryKey: habitKeys.detail(habitId) });
           void queryClient.invalidateQueries({ queryKey: dashboardKeys.summary() });
+          void queryClient.invalidateQueries({ queryKey: analyticsKeys.all });
         }
       });
     },

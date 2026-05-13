@@ -13,6 +13,7 @@ import { DashboardPage } from '../features/dashboard/pages/DashboardPage';
 import { HabitsPage } from '../features/habits/pages/HabitsPage';
 import { HabitDetailPage } from '../features/habits/pages/HabitDetailPage';
 import { TrackerPage } from '../features/tracking/pages/TrackerPage';
+import { AnalyticsPage } from '../features/analytics/pages/AnalyticsPage';
 import { ProtectedRoute } from './ProtectedRoute';
 import { PublicOnlyRoute } from './PublicOnlyRoute';
 
@@ -59,7 +60,7 @@ export const router = createBrowserRouter([
           { path: '/habits',    element: <HabitsPage /> },
           { path: '/habits/:id', element: <HabitDetailPage /> },
           { path: '/track',     element: <TrackerPage /> },
-          { path: '/analytics', element: <PlaceholderPage title="Analytics" /> },
+          { path: '/analytics', element: <AnalyticsPage /> },
           { path: '/settings',  element: <PlaceholderPage title="Settings" /> },
         ],
       },

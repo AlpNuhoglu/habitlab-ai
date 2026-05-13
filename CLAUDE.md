@@ -212,5 +212,5 @@ Before touching the database schema, check the analysis report section 5.1 — t
 - **Graceful shutdown**: `app.enableShutdownHooks()` in `main.ts`. All workers already implement `OnModuleDestroy`. SIGTERM drains in-flight requests before NestJS destroys the module graph.
 - **Audit log**: `AuditService` (`infrastructure/audit/`) INSERTs fire-and-forget into the existing `audit_log` table. Errors are caught and logged — audit failure never blocks the main operation. Currently hooks: `user.password_changed` (auth service), `recommendation.accepted` (recommendations service).
 - **OpenAPI drift check**: `pnpm --filter backend generate:openapi` (needs running DB). CI regenerates and diffs against committed `backend/openapi.json`. Initial generation: `pnpm db:up && pnpm --filter backend generate:openapi && git add backend/openapi.json`.
-- **Coverage threshold**: E2E tests have a 50% line coverage floor (`backend/test/jest-e2e.json`). TODO: measure actual coverage via `pnpm --filter backend test:e2e --coverage` and raise threshold to 70%.
+- **Coverage threshold**: E2E tests have a 70% line coverage floor (`backend/test/jest-e2e.json`). Actual coverage: ~85% lines, ~73% branches, ~78% functions.
 - **prom-client**: added as runtime dep `^15.1.3`. No other new runtime deps in WP10.

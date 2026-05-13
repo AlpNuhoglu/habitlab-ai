@@ -26,7 +26,8 @@ interface EventRow {
 export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(OutboxPublisher.name);
   private intervalHandle: ReturnType<typeof setInterval> | null = null;
-  private running = false;
+  private destroyed = false;
+  private inflight: Promise<void> | null = null;
 
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
@@ -38,18 +39,28 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
     this.intervalHandle = setInterval(() => void this.poll(), POLL_INTERVAL_MS);
   }
 
-  onModuleDestroy(): void {
+  async onModuleDestroy(): Promise<void> {
+    this.destroyed = true;
     if (this.intervalHandle !== null) {
       clearInterval(this.intervalHandle);
       this.intervalHandle = null;
     }
+    if (this.inflight !== null) {
+      await this.inflight;
+    }
   }
 
   private async poll(): Promise<void> {
-    // Guard: skip if a previous poll is still in flight
-    if (this.running) return;
-    this.running = true;
+    // Guard: skip if a previous poll is still in flight or module is being destroyed
+    if (this.inflight !== null || this.destroyed) return;
+    this.inflight = this._doPoll().finally(() => {
+      this.inflight = null;
+    });
+    await this.inflight;
+  }
 
+  private async _doPoll(): Promise<void> {
+    if (this.destroyed) return;
     try {
       await this.dataSource.transaction(async (em) => {
         const rows = await em.query<EventRow[]>(
@@ -96,8 +107,6 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
       });
     } catch (err) {
       this.logger.error(`Outbox poll failed: ${String(err)}`);
-    } finally {
-      this.running = false;
     }
   }
 }

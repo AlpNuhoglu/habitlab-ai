@@ -43,3 +43,7 @@ redis_data/
 *.pem
 .cache/
 .turbo/
+
+coverage/
+coverage-e2e/
+*.lcov

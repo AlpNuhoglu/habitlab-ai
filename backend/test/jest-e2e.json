@@ -2,30 +2,30 @@
   "moduleFileExtensions": ["js", "json", "ts"],
   "rootDir": ".",
   "testEnvironment": "node",
-  "testRegex": "test/.*\\.e2e-spec\\.ts$",
+  "testRegex": ".*\\.e2e-spec\\.ts$",
   "testTimeout": 30000,
   "maxWorkers": 1,
   "transform": {
     "^.+\\.(t|j)s$": [
       "ts-jest",
       {
-        "tsconfig": "test/tsconfig.e2e.json"
+        "tsconfig": "./tsconfig.e2e.json"
       }
     ]
   },
   "moduleNameMapper": {
-    "^src/(.*)$": "<rootDir>/src/$1"
+    "^src/(.*)$": "<rootDir>/../src/$1"
   },
   "collectCoverageFrom": [
-    "src/**/*.ts",
-    "!src/**/*.spec.ts",
-    "!src/**/*.e2e-spec.ts",
-    "!src/generate-openapi.ts",
-    "!src/cli/**",
-    "!src/migrations/**",
-    "!src/data-source.ts"
+    "../src/**/*.ts",
+    "!../src/**/*.spec.ts",
+    "!../src/**/*.e2e-spec.ts",
+    "!../src/generate-openapi.ts",
+    "!../src/cli/**",
+    "!../src/migrations/**",
+    "!../src/data-source.ts"
   ],
-  "coverageDirectory": "coverage-e2e",
+  "coverageDirectory": "../coverage-e2e",
   "coverageThreshold": {
     "global": {
       "lines": 50

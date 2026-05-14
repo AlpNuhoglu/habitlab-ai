@@ -41,8 +41,10 @@ function makeRec(overrides: Partial<Recommendation> = {}): Recommendation {
 }
 
 function makeWrapper(qc: QueryClient) {
-  return ({ children }: { children: React.ReactNode }) =>
+  const Wrapper = ({ children }: { children: React.ReactNode }) =>
     React.createElement(QueryClientProvider, { client: qc }, children);
+  Wrapper.displayName = 'QueryClientWrapper';
+  return Wrapper;
 }
 
 describe('useAcceptRecommendation', () => {

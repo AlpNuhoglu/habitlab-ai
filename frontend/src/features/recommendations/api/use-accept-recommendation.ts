@@ -5,7 +5,7 @@ import { useMutationIdempotency } from '../../../api/idempotency';
 import { invalidateOnRecommendationAccept } from '../../../api/_invalidation';
 import { habitKeys, recommendationKeys, dashboardKeys } from '../../../api/query-keys';
 import { postHabitMutated } from '../../../lib/broadcast';
-import { emitRecommendationAccepted } from '../../../lib/events/client-event';
+import { emitRecommendationAccepted } from '../../../lib/events/use-emit-event';
 import { toast } from '../../../hooks/use-toast';
 import type { Recommendation } from '../types';
 import type { DashboardSummary } from '../../habits/types';

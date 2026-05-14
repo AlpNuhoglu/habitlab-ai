@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-import { emitRecommendationShown } from '../../../lib/events/client-event';
+import { emitRecommendationShown } from '../../../lib/events/use-emit-event';
 import type { RecommendationCategory, RecommendationSource } from '../types';
 
 // Module-level Set dedupes impressions across the session without React state.

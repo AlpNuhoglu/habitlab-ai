@@ -4,7 +4,7 @@ import { ApiException, apiFetch } from '../../../api/client';
 import { useMutationIdempotency } from '../../../api/idempotency';
 import { invalidateOnRecommendationDismiss } from '../../../api/_invalidation';
 import { dashboardKeys, recommendationKeys } from '../../../api/query-keys';
-import { emitRecommendationDismissed } from '../../../lib/events/client-event';
+import { emitRecommendationDismissed } from '../../../lib/events/use-emit-event';
 import { toast } from '../../../hooks/use-toast';
 import { cooldownMessage } from '../lib/cooldown-message';
 import type { Recommendation } from '../types';

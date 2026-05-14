@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 
 import { VariantSlot } from '../../auth/components/VariantSlot';
-import { emitRecommendationSuspicious } from '../../../lib/events/client-event';
+import { emitRecommendationSuspicious } from '../../../lib/events/use-emit-event';
 import { CATEGORY_META } from '../lib/category-meta';
 import { isSuspiciousPayload } from '../lib/suspicious-payload-check';
 import { useImpressionTracking } from '../lib/use-impression-tracking';

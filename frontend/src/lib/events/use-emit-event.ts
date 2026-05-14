@@ -8,3 +8,14 @@ import { enqueue } from './event-sink';
 export function useEmitEvent(): (event: ClientEvent) => void {
   return useCallback((event: ClientEvent) => enqueue(event), []);
 }
+
+// Re-exported so features/ can import emit helpers without touching client-event directly.
+export {
+  emitRecommendationShown,
+  emitRecommendationAccepted,
+  emitRecommendationDismissed,
+  emitRecommendationSuspicious,
+  emitImpression,
+  emitExposure,
+  emitClientError,
+} from './client-event';

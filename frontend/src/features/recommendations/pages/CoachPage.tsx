@@ -20,7 +20,7 @@ export function CoachPage(): React.ReactElement {
   // Stub: no-op until SSE lands for recommendations channel
   useRealtime({ channel: 'recommendations', onEvent: () => undefined, enabled: false });
 
-  const habits = habitsQuery.data ?? [];
+  const habits = useMemo(() => habitsQuery.data ?? [], [habitsQuery.data]);
   const hasHabits = habits.length > 0;
 
   const habitNameById = useMemo(

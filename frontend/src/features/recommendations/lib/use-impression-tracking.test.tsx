@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render } from '@testing-library/react';
 import { useImpressionTracking, _resetSeenForTesting } from './use-impression-tracking';
-import * as clientEvent from '../../../lib/events/client-event';
+import * as clientEvent from '../../../lib/events/use-emit-event';
 
 type IntersectionCallback = (entries: IntersectionObserverEntry[]) => void;
 

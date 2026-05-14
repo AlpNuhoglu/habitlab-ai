@@ -4,11 +4,12 @@ import { dashboardKeys } from '../../../api/query-keys';
 import { DataState } from '../../../components/DataState';
 import { useRealtime } from '../../../lib/events/use-realtime';
 import { useDashboard } from '../api/use-dashboard';
+import { RecommendationCard } from '../../recommendations/components/RecommendationCard';
+import type { Recommendation } from '../../recommendations/types';
 import { DashboardGreeting } from '../components/DashboardGreeting';
 import { DashboardSkeleton } from '../components/DashboardSkeleton';
 import { DashboardSummaryTiles } from '../components/DashboardSummaryTiles';
 import { TodayList } from '../components/TodayList';
-import { RecommendationCard } from '../../recommendations/components/RecommendationCard';
 
 export function DashboardPage(): React.ReactElement {
   const queryClient = useQueryClient();
@@ -45,13 +46,17 @@ export function DashboardPage(): React.ReactElement {
               <section>
                 <h2 className="mb-3 text-sm font-semibold text-gray-700">Recommendations</h2>
                 <div className="space-y-3">
-                  {summary.activeRecommendations.slice(0, 3).map((r) => (
-                    <RecommendationCard key={r.id} recommendation={r} />
+                  {summary.activeRecommendations.slice(0, 3).map((r, i) => (
+                    <RecommendationCard
+                      key={r.id}
+                      recommendation={r as unknown as Recommendation}
+                      index={i}
+                      compact
+                    />
                   ))}
                 </div>
               </section>
             )}
-
           </>
         )}
       </DataState>

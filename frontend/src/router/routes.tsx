@@ -14,6 +14,7 @@ import { HabitsPage } from '../features/habits/pages/HabitsPage';
 import { HabitDetailPage } from '../features/habits/pages/HabitDetailPage';
 import { TrackerPage } from '../features/tracking/pages/TrackerPage';
 import { AnalyticsPage } from '../features/analytics/pages/AnalyticsPage';
+import { CoachPage } from '../features/recommendations/pages/CoachPage';
 import { ProtectedRoute } from './ProtectedRoute';
 import { PublicOnlyRoute } from './PublicOnlyRoute';
 
@@ -61,6 +62,7 @@ export const router = createBrowserRouter([
           { path: '/habits/:id', element: <HabitDetailPage /> },
           { path: '/track',     element: <TrackerPage /> },
           { path: '/analytics', element: <AnalyticsPage /> },
+          { path: '/coach',     element: <CoachPage /> },
           { path: '/settings',  element: <PlaceholderPage title="Settings" /> },
         ],
       },

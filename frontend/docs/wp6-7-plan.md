@@ -1,10 +1,29 @@
 # WP6 + WP7 — Smart Coach (Rule-Based + LLM-Augmented Recommendations): Frontend Architectural Plan
 
-**Status:** Draft v1
+**Status:** Draft v2
 **Owner:** Frontend (Lead Architect: Claude)
 **Backend status:**
 **WP6** done — `RecommendationWorkerService` consumes `habitlab:events` (consumer group `habitlab-recommendations`), six rules wired (reschedule p70, reduce_difficulty p80, streak_celebration p60, encouragement_after_skip p75, consistency_reinforcement p65, retroactive_logging_reminder p85), 14-day cooldown per `(user, habit, category)` (FR-053), `accept` for `reschedule` atomically patches `habits.preferred_time`.
 **WP7** done — `LLMProvider.complete(prompt)` with `OpenAILlmProvider` (gpt-4o-mini, temp 0.3, 150 max tokens, 8s timeout, 1 retry) gated by ai_recommendations_enabled → circuit breaker → per-user daily quota (≤3) → system budget ($3/day default). Safety filter (>280 chars / medical keywords / refusal / URL / `?`-ending → null → template fallback). LLM tokens + cost recorded in `recommendations.llm_*` columns.
+
+---
+
+### Revisions in v2
+
+Applied from architectural review (see review thread). Each item below is cross-referenced to the section it touches.
+
+1. **Dismiss undo dropped for v1** (§3.4, §4.4, §6.3, §9). The undo path was a fictional contract — no backend revert endpoint exists, and the "local cache only" fallback creates a UX lie when the next refetch reconciles. Cleaner to ship dismiss as terminal in v1 and add undo when the backend supports it. Toast remains, without the Undo affordance. The PATCH endpoint is moved from "recommended addition" to "deferred to v2 — required to re-enable undo" in §8.
+2. **Invalidation matrix tightened** (§4.3). `reduce_difficulty` no longer invalidates `habitKeys.*` — per CLAUDE.md WP6, only `reschedule` patches a habit row today. Speculative "if backend extends" rows are removed from the matrix and pushed entirely to §8 as open questions.
+3. **Cooldown copy is now habit-named** (§7.1 #4 / dismiss flow). "You won't see this again for two weeks" was a global lie — cooldown is per `(user, habit, category)`. New copy: "We'll hold this suggestion for {habitName} for the next 14 days." Helper in `lib/cooldown-message.ts` takes the habit name as input.
+4. **Worker-vs-accept race documented** (§7.1 #11). Cooldown protects against the same `(habit, category)` reappearing the moment the worker fires again, but the test harness should gate on it explicitly.
+5. **`HABIT_MUTATED` BroadcastChannel message is coach-owned, not a WP2 retrofit** (§7.1 #1). WP2 only standardized auth messages. The coach feature defines and exports the `HABIT_MUTATED` envelope type from its `index.ts`; the habits feature subscribes. Cross-feature coordination via a typed message, not a private channel.
+6. **`<VariantSlot>` scope clarified — UI chrome only, never recommendation title/body** (§1 hard constraints, §3.2, §7.2 #9). Title and body are server-authoritative; backend writes variant-resolved text into the recommendation row. The frontend's `<VariantSlot>` is reserved for the page header, action button labels, and the source-badge tooltip — chrome that the backend doesn't own.
+7. **CSS layout protection for suspicious payloads** (§3.4). "Render as-is, log telemetry" was the text policy. Layout protection (`max-h`, `overflow-hidden`, `line-clamp-4` on full, `line-clamp-2` on compact) prevents a regression payload from breaking the feed layout while the telemetry catches the backend bug.
+8. **`recommendation.shown` uses Intersection Observer, not mount-time** (§3 — new primitive, §5.4, §7.1 #9). Mount-time emission inflates impressions for off-screen cards in long feeds. `useImpressionTracking` fires once per `(rec.id, session)` when the card crosses 50% visibility for ≥200ms.
+9. **§8 expanded** with three new open questions: `AcceptRecommendationResponse` shape (presence of `habit` field for side-effect categories), backend `hasHabits: boolean` on `/recommendations` envelope as a clean alternative to coach importing habits-feature for the empty state, and confirmation that backend writes variant-resolved title/body for rec_copy_v1 experiments.
+10. **§7.2 #1 (decoupling) softened** — coach importing `useHabits` from `features/habits/index.ts` is acceptable per public-barrel policy, but the cleaner option (`hasHabits` on `/recommendations`) is recorded in §8 as the preferred long-term shape.
+
+---
 
 **Scope:** A dedicated **Smart Coach** page (`/coach`) showing the full feed of active recommendations, plus the per-recommendation accept/dismiss interactions that work consistently from the dashboard's top-3 surface and from the coach page. WP6 and WP7 are scoped together because they share one UI — WP7 adds a single `source` field to the recommendation envelope; the frontend's job is to render that distinction tastefully without making it feel like an A/B label.
 
@@ -20,9 +39,9 @@
 - Render the dashboard's top-3 recommendations (already in WP3's `DashboardPage` via the `/dashboard` payload) using the **same `<RecommendationCard>` component** as the coach page. One component, two contexts.
 - Handle `accept` semantics per category — most accepts just mark the recommendation `accepted`, but `reschedule` also patches `habits.preferred_time` (CLAUDE.md WP6). The frontend must reflect both effects in one optimistic update.
 - Make AI-generated recommendations transparent without theatrical "🤖 AI" stamps. A small "AI insight" pill with a tooltip linking to a brief explanation. Trust is earned through restraint.
-- Honor the **14-day cooldown** in the UI: after dismissal, surface a subtle "You won't see this again for two weeks" affordance so users understand why their feed feels stable.
+- Honor the **14-day cooldown** in the UI: after dismissal, surface a subtle, habit-named affordance so users understand why their feed feels stable. Copy template: "We'll hold this suggestion for {habitName} for the next 14 days." Cooldown is per `(user, habit, category)` — never a global lie like "you won't see this for two weeks" which would imply the entire coach goes quiet.
 - Wire WP8 variant-aware copy: when the recommendation envelope carries `experiment_variant`, render the variant copy without the coach feature importing `features/experiments`.
-- Emit WP4 telemetry: `recommendation.impression` per visible card, `recommendation.accepted` / `recommendation.dismissed` mirrored as client events (backend already emits server-side; this is for client-render-time exposure).
+- Emit WP4 telemetry: `recommendation.shown` per **visible** card (Intersection Observer, ≥50% visibility for ≥200ms, deduped per session — §3.5), `recommendation.accepted_client` / `recommendation.dismissed_client` mirrored as client events (backend already emits server-side; the `_client` suffix distinguishes render-time from server-authoritative).
 
 **Hard constraints (from CLAUDE.md)**
 
@@ -30,7 +49,7 @@
 - **`accept` side-effects are category-specific.** Today only `reschedule` mutates an external resource. The frontend's accept hook must read the category, decide which caches to invalidate, and not hard-code "always invalidate habits." Encoded in §4.3.
 - **WP7 LLM is invisible to the frontend logic — only to the user.** The `source: 'rule' | 'ai'` field affects rendering only. The accept/dismiss code path is identical. The frontend does not call OpenAI, does not see prompts, does not see token counts. Cost transparency is a backend-only concern.
 - **Safety filter is server-side.** The frontend never sanitizes recommendation text. If a payload arrives that violates expected length or content, the frontend renders it as-is and logs a `client.recommendation.suspicious` telemetry event (text exceeded 280 chars, etc.) so we catch backend regressions. No client-side rewriting.
-- **Variant rendering happens via `<VariantSlot>`.** The recommendation copy may already carry variant text from the backend (rec_copy_v1 experiment). The frontend respects whatever the backend sent. No client-side variant resolution for recommendation bodies.
+- **`<VariantSlot>` scope is UI chrome only.** The recommendation `title` and `body` are server-authoritative — the backend writes variant-resolved text into the row at creation time when `rec_copy_v1` is active. `<VariantSlot>` is reserved for things the backend doesn't own: the page header copy ("Smart Coach" vs "Your Insights"), action button labels when an experiment varies them, the source-badge tooltip text. The frontend never wraps `{r.title}` or `{r.body}` in a `<VariantSlot>` — that would conflate "data the backend resolved" with "chrome the frontend resolves." Confirmation in §8 #7.
 - **NN-8:** all types come from generated OpenAPI. `Recommendation`, `RecommendationCategory`, `RecommendationStatus`, `AcceptRecommendationResponse` etc.
 
 **Non-goals for this slice**
@@ -63,7 +82,7 @@ frontend/src/
 │   │   │   ├── RecommendationCategoryBadge.tsx   icon + color per category
 │   │   │   ├── RecommendationSourceBadge.tsx     "AI insight" pill with tooltip (WP7)
 │   │   │   ├── RecommendationAcceptDialog.tsx    confirm + show predicted effect (e.g. "Move reminder to 18:00?")
-│   │   │   ├── RecommendationDismissedToast.tsx  "Dismissed — won't appear for 14 days" with undo
+│   │   │   ├── RecommendationDismissedToast.tsx  "Dismissed — we'll hold this for {habitName} for 14 days" (no undo in v1)
 │   │   │   ├── CoachEmptyState.tsx           "No insights yet — keep tracking" + CTA
 │   │   │   └── CoachLoadingSkeleton.tsx
 │   │   ├── pages/
@@ -74,14 +93,14 @@ frontend/src/
 │   │   │   ├── source-explanation.ts         tooltip text per RecommendationSource (en/tr)
 │   │   │   └── cooldown-message.ts           "14 days" / "until {date}" copy helper
 │   │   ├── store/
-│   │   │   └── coach-ui-store.ts             Zustand: dismissed-undo grace window, recently-acted ids
+│   │   │   └── coach-ui-store.ts             Zustand: recently-acted ids (anti-refetch-revive window)
 │   │   ├── testing/
 │   │   │   └── fixtures.ts                   makeRecommendation({category, source})
 │   │   └── index.ts                          barrel — public: CoachPage, RecommendationCard, hooks
 │   │
 │   ├── habits/                               (WP3 — accept on `reschedule` invalidates habitKeys.detail)
 │   ├── dashboard/                            (WP3 — DashboardRecommendations uses RecommendationCard)
-│   └── experiments/                          (WP8 — VariantSlot consumed by RecommendationCard for headline copy)
+│   └── experiments/                          (WP8 — VariantSlot consumed by coach *chrome* only: page header, accept button label, source-badge tooltip)
 │
 └── router/
     └── routes.tsx                            + /coach (ProtectedRoute requireVerified)
@@ -120,23 +139,25 @@ frontend/src/
 ### 3.2 Inside `<RecommendationCard variant="full">`
 
 ```
-<Card>
+<Card ref={impressionRef}>                                       {/* useImpressionTracking — §3.5 */}
   <CardHeader>
     <RecommendationCategoryBadge category={r.category} />        // icon + color
     {r.source === 'ai' && <RecommendationSourceBadge />}         // small "AI insight" pill (WP7)
   </CardHeader>
   <CardBody>
-    <VariantSlot id={`rec.${r.category}.title`}>
-      <h3>{r.title}</h3>                                          // fallback = backend default
-    </VariantSlot>
-    <p>{r.body}</p>
+    <h3>{r.title}</h3>                                            {/* server-authoritative, variant-resolved by backend */}
+    <p>{r.body}</p>                                               {/* server-authoritative */}
   </CardBody>
   <CardActions>
-    <Button onClick={() => onAccept(r)}>{acceptLabel(r.category)}</Button>
+    <Button onClick={() => onAccept(r)}>
+      <VariantSlot id="coach.action.accept" fallback={acceptLabel(r.category)} />
+    </Button>
     <Button variant="ghost" onClick={() => onDismiss(r)}>Not now</Button>
   </CardActions>
 </Card>
 ```
+
+`{r.title}` and `{r.body}` are rendered verbatim — no `<VariantSlot>` wrapper. The backend has already written the resolved variant text into those fields. `<VariantSlot>` appears only on the chrome (the accept button label, here), where frontend owns the copy.
 
 ### 3.3 Inside `<RecommendationCard variant="compact">` (dashboard)
 
@@ -147,7 +168,54 @@ Same data, denser layout: category icon + title only (body truncated to one line
 - The card never queries — the parent passes `recommendation: Recommendation`. The card calls `useAcceptRecommendation` and `useDismissRecommendation` for actions only.
 - `<RecommendationAcceptDialog>` is shared. It shows category-specific preview text: for `reschedule`, "Move your reminder to 18:00?"; for `reduce_difficulty`, "Lower difficulty from 4 to 3?" Generated by `lib/action-preview.ts`.
 - `<RecommendationSourceBadge>` is the **only** place that differentiates AI from rule. It's a 12px pill, not a header banner. The body copy itself is identical in treatment regardless of source.
-- The card supports **undo within 5 seconds** after dismiss via toast. The mutation is fired immediately (optimistic), but the user has a window to reverse it before the cooldown effectively kicks in. See §7.1 #2.
+- **Dismiss is terminal in v1.** The mutation fires immediately, a toast confirms "Dismissed — we'll hold this suggestion for {habitName} for the next 14 days," with no Undo affordance. Undo is deferred to a v2 ticket pending the backend PATCH endpoint (§8 #2).
+- **Layout protection against suspicious payloads.** Per §1 hard constraints, the frontend renders text as-is even on length / shape regressions, but the card's body container is constrained to prevent a runaway payload from breaking the feed:
+  - `variant="full"`: `max-h-[12rem]` + `overflow-hidden` + `line-clamp-4` on the body, `line-clamp-2` on the title.
+  - `variant="compact"`: `max-h-[5rem]` + `overflow-hidden` + `line-clamp-2` on the body, `line-clamp-1` on the title.
+  - A truncated card emits `recommendation.suspicious` with `reason: 'too_long'` so the regression is observable in backend telemetry.
+
+### 3.5 `useImpressionTracking(ref, options)` — the only correct way to fire `recommendation.shown`
+
+Mount-time emission inflates impressions in long feeds — a card off-screen still emits. The correct contract is **viewport-visible-for-long-enough**.
+
+```ts
+interface ImpressionOptions {
+  readonly recommendationId: string;
+  readonly category: RecommendationCategory;
+  readonly source: RecommendationSource;
+  readonly position: number;
+  readonly thresholdRatio?: number;   // default 0.5 — 50% of the card visible
+  readonly minDurationMs?: number;    // default 200 — sustained for at least 200ms
+}
+
+function useImpressionTracking<E extends Element>(
+  ref: React.RefObject<E>,
+  options: ImpressionOptions,
+): void;
+```
+
+Implementation contract:
+
+- Wraps a single `IntersectionObserver` per page (shared via context) — not one observer per card.
+- Fires `recommendation.shown` exactly once per `(recommendationId, session)` tuple. A page-scoped `Set<string>` in the impression context dedupes; resets only on full page unload.
+- A card that becomes visible, then scrolls off before `minDurationMs` elapses, does **not** fire. Tracked via per-card timer cleared on `intersectionRatio < threshold`.
+- Honors `prefers-reduced-motion` and document visibility — when the tab is hidden (`document.visibilityState === 'hidden'`), no events fire. Re-becoming visible re-arms the timer.
+- The hook is a no-op in `vitest` environment unless explicitly opted in via fixture — keeps unit tests deterministic.
+
+`<RecommendationCard>` consumes it:
+
+```tsx
+const ref = useRef<HTMLDivElement>(null);
+useImpressionTracking(ref, {
+  recommendationId: r.id,
+  category: r.category,
+  source: r.source,
+  position: index,
+});
+return <Card ref={ref}>...</Card>;
+```
+
+This replaces the §7.1 "mount-time emission" approach entirely. WP4 telemetry contract for `recommendation.shown` is updated to specify the visibility semantics (§5.4 note added).
 
 ---
 
@@ -181,12 +249,12 @@ The dashboard's top-3 do **not** get a separate query — they live inside the `
 | Action | Category | Always invalidate | Additionally invalidate |
 |---|---|---|---|
 | Accept | `reschedule` | `recommendationKeys.active()`, `dashboardKeys.summary()` | `habitKeys.detail(habitId)`, `habitKeys.lists()` (preferred_time changed) |
-| Accept | `reduce_difficulty` | same | `habitKeys.detail(habitId)`, `habitKeys.lists()` (difficulty changed, **if** the backend extends `accept` to apply this — see §8) |
+| Accept | `reduce_difficulty` | same | **none** — per CLAUDE.md WP6, accept for this category is acknowledgment-only today. The backend does **not** patch `habits.difficulty`. If that changes (§8 #4), this row gains habit-cache invalidation. Until then, treating it the same way is correctness-preserving and avoids a refetch storm. |
 | Accept | `streak_celebration` \| `encouragement_after_skip` \| `consistency_reinforcement` \| `retroactive_logging_reminder` | same | none — these accepts are pure acknowledgments |
 | Dismiss | any | `recommendationKeys.active()`, `dashboardKeys.summary()` | none |
 | Snooze (optional) | any | `recommendationKeys.active()`, `dashboardKeys.summary()` | none |
 
-Each mutation hook reads `recommendation.category` and consults `_invalidation.ts` for the right keys. Hooks never call `qc.invalidateQueries(...)` directly.
+Each mutation hook reads `recommendation.category` and consults `_invalidation.ts` for the right keys. Hooks never call `qc.invalidateQueries(...)` directly. The matrix reflects current backend behavior only; speculative "if the backend extends" rows live in §8, not here, to avoid eager invalidations against fields the server didn't change.
 
 ### 4.4 Optimistic update for accept/dismiss
 
@@ -204,15 +272,14 @@ The hot path here is *not* as hot as the WP3 toggle, but the UX expectation is t
    - Invalidate per the matrix.
    - The server's truth replaces the optimistic guesses.
 
-**Special case: dismiss undo.** When the user dismisses, the mutation fires immediately, but the toast offers "Undo" for 5 seconds. Undo strategy:
-- Easy path: backend has a `POST /recommendations/:id/undismiss` endpoint → frontend just fires it.
-- Probable reality: it doesn't. Frontend instead delays the `onSettled` invalidation by 5 seconds. If undo is clicked, restore the optimistic cache snapshot and fire `useAcceptRecommendation`'s inverse (which doesn't exist either) → simplest: re-insert into cache locally, and rely on next refetch to confirm.
-- Recommend backend: add idempotent `PATCH /recommendations/:id { status }` so undo is a clean reversion to `active`. Listed in §8.
+**Dismiss is terminal in v1.** The mutation fires immediately and the toast confirms the action with cooldown copy ("Dismissed — we'll hold this suggestion for {habitName} for the next 14 days") but offers **no Undo affordance**. The previous draft proposed an undo path; in review we decided the only honest implementations require a backend revert endpoint that doesn't exist today. A "cache-only undo" creates a UX lie when the next refetch reconciles. We ship dismiss as final and revisit undo when the backend exposes an idempotent `PATCH /recommendations/:id { status }` (tracked in §8 #2 as a deferred v2 prerequisite).
+
+The `coach-ui-store.ts` keeps `recentlyActedIds` for the optimistic-vs-refetch race in §7.1 — that's not undo, it just prevents a refetch from reviving a card the user already dismissed inside a short window.
 
 ### 4.5 What lives in Zustand (`coach-ui-store.ts`)
 
-- `recentlyActedIds: Set<string>` — recommendations the user acted on in the last 30 seconds. Used to suppress them from optimistic re-insertion if a refetch races a mutation.
-- `dismissUndoGraceMs: number` — user pref, default 5000.
+- `recentlyActedIds: Map<string, number>` — recommendation id → timestamp the user accepted/dismissed. Used to suppress them from optimistic re-insertion if a refetch races a mutation within ~30s. Auto-pruned on read; no background timer.
+- (Removed in v2: `dismissUndoGraceMs`. Dismiss undo is deferred — see §4.4.)
 
 Not persisted to localStorage (transient session state).
 
@@ -347,13 +414,15 @@ sequenceDiagram
   DB-->>API: rows (rule + ai mixed)
   API-->>FE: 200 [Recommendation, ...]
   FE->>FE: hydrate recommendationKeys.active()
-  loop per visible card
-    FE->>FE: emit('recommendation.shown', {id, category, source, position})
+  FE->>U: render feed (cards mounted, IntersectionObserver attached per card)
+  Note over FE,U: NO impression events fired on mount
+  loop user scrolls / cards become ≥50% visible for ≥200ms
+    FE->>FE: useImpressionTracking → emit('recommendation.shown', {id, category, source, position})
+    Note over FE: dedup: each (rec.id, session) emits at most once
   end
-  FE->>U: render feed
 ```
 
-The shown events flow through the WP4 telemetry sink — batched, not per-card.
+The shown events flow through the WP4 telemetry sink — batched, and only after the card has actually been seen. See §3.5 for the contract.
 
 ### 6.2 Accept `reschedule` (the complex case — side effect on `habits`)
 
@@ -388,7 +457,7 @@ sequenceDiagram
   Note over Card,QC: user sees no spinner — feed already updated, server reconciles silently
 ```
 
-### 6.3 Dismiss with 5-second undo
+### 6.3 Dismiss (terminal in v1)
 
 ```mermaid
 sequenceDiagram
@@ -397,6 +466,7 @@ sequenceDiagram
   participant Card as RecommendationCard
   participant Mut as useDismissRecommendation
   participant QC as QueryClient
+  participant Store as coach-ui-store
   participant API as NestJS API
   participant T as Toast
 
@@ -404,25 +474,22 @@ sequenceDiagram
   Card->>Mut: mutate(recommendation)
   Mut->>QC: snapshot recs + dashboard
   Mut->>QC: optimistic remove
-  Mut->>T: show toast "Dismissed — Undo (5s)"
-  Mut->>API: POST /recommendations/:id/dismiss
-  API-->>Mut: 200
-  Note over T: 5-second timer starts after mutation resolves
-  alt user clicks Undo
-    U->>T: Undo
-    T->>Mut: requestUndo
-    Mut->>API: PATCH /recommendations/:id {status:'active'}
-    API-->>Mut: 200 (idempotent)
-    Mut->>QC: setQueryData restore snapshot
-    Mut->>U: rec re-appears in feed
-  else 5 seconds elapse
-    T-->>T: dismiss toast silently
+  Mut->>Store: recentlyActedIds.set(id, now())
+  Mut->>T: show toast "Dismissed — we'll hold this suggestion for {habitName} for 14 days"
+  Mut->>API: POST /recommendations/:id/dismiss (Idempotency-Key)
+  alt 200 OK
+    API-->>Mut: 200
     Mut->>QC: invalidateQueries(recs, dashboard)
-    Note over Mut,QC: dismissal is now durable; cooldown begins
+    Note over Mut,QC: cooldown begins server-side per (user, habit, category)
+  else error
+    API-->>Mut: 5xx / network error
+    Mut->>QC: rollback snapshot
+    Mut->>Store: recentlyActedIds.delete(id)
+    Mut->>T: replace toast "Couldn't dismiss — try again"
   end
 ```
 
-The undo path depends on §8 question #2 — whether backend offers a clean revert. Without it, undo becomes "restore client cache locally + tolerate next refetch confirming the dismissal anyway." Worse UX, but acceptable.
+Undo is intentionally absent in v1. The deferred ticket is gated on §8 #2 (backend `PATCH /recommendations/:id { status }`).
 
 ### 6.4 Rule-based vs AI-augmented (frontend perspective — same path, different badge)
 
@@ -468,33 +535,53 @@ The only branch in the frontend is the badge. The card's behavior — accept, di
 
 ### 7.1 Correctness / UX edge cases
 
-1. **Accept of `reschedule` while the habit detail page is open in another tab.** Tab A accepts the recommendation, mutates `preferred_time`. Tab B's habit detail shows stale time. **Mitigation:** the WP2 BroadcastChannel posts a `HABIT_MUTATED` message after any habit-mutating mutation (extend the channel's schema slightly). Tab B invalidates `habitKeys.detail(id)`. This is a small, justified extension of the WP2 channel.
+1. **Accept of `reschedule` while the habit detail page is open in another tab.** Tab A accepts the recommendation, mutates `preferred_time`. Tab B's habit detail shows stale time. **Mitigation:** the **coach feature** defines and broadcasts a typed `HABIT_MUTATED` message on the `habitlab-auth` BroadcastChannel after a `reschedule` accept resolves. The message envelope is **owned by the coach feature** (exported as a public type from `features/recommendations/index.ts`), not retrofitted into WP2's auth channel schema. The habits feature subscribes:
 
-2. **Dismiss undo races server confirmation.** The user clicks Undo at t=4.9s; the mutation just resolved at t=4.8s. The undo request is sent to a recommendation already in `dismissed` state. **Mitigation:** the undo path uses `PATCH /recommendations/:id { status: 'active' }` (idempotent). Backend reverts. If §8 #2 is rejected, fallback is local cache restoration only — backend remains dismissed, next refetch surfaces the gap. Document the tradeoff for users? Probably not — 5s window is rarely raced.
+   ```ts
+   // features/recommendations/index.ts (public)
+   export interface HabitMutatedMessage {
+     readonly type: 'HABIT_MUTATED';
+     readonly habitId: string;
+     readonly source: 'recommendation_accept';
+     readonly fields: ReadonlyArray<'preferred_time' | 'difficulty'>;
+   }
 
-3. **AI-generated copy that's locale-inappropriate.** WP7 prompt builder is locale-aware (`en`/`tr`) per CLAUDE.md. If the user's locale changes mid-session, cached AI recs still carry the old language. **Mitigation:** recommendations are not re-rendered for locale change — they're aggregated at generation time. New recs after a locale change will be in the new language. Frontend doesn't fight this. Document in §8 if there's an expectation otherwise.
+   // features/habits/use-cross-tab-sync.ts
+   useBroadcastSubscription<HabitMutatedMessage>('HABIT_MUTATED', (msg) => {
+     qc.invalidateQueries({ queryKey: habitKeys.detail(msg.habitId) });
+     qc.invalidateQueries({ queryKey: habitKeys.lists() });
+   });
+   ```
 
-4. **Empty feed when a user has habits but no recs yet.** Recs are async — created by the worker after events land. A new user may see an empty `/coach` for hours. **Mitigation:** `<CoachEmptyState>` distinguishes "no habits" (CTA: create one) from "habits but no recs yet" (copy: "Log a few days to unlock insights"). Detection: query the habits feature for habit count.
+   WP2's channel was named for auth but is a general transport; ownership of message *types* belongs to whichever feature originates the mutation. No retrofit is needed in WP2 — just a documented expansion of the message union in the channel's central type file.
+
+2. **AI-generated copy that's locale-inappropriate.** WP7 prompt builder is locale-aware (`en`/`tr`) per CLAUDE.md. If the user's locale changes mid-session, cached AI recs still carry the old language. **Mitigation:** recommendations are not re-rendered for locale change — they're aggregated at generation time. New recs after a locale change will be in the new language. Frontend doesn't fight this. Document in §8 if there's an expectation otherwise.
+
+3. **Empty feed when a user has habits but no recs yet.** Recs are async — created by the worker after events land. A new user may see an empty `/coach` for hours. **Mitigation:** `<CoachEmptyState>` distinguishes "no habits" (CTA: create one) from "habits but no recs yet" (copy: "Log a few days to unlock insights"). Detection today: read habit count via `features/habits/index.ts` (a *barrel* import — public surface — is acceptable per §7.2 #1, internals are off-limits). **Preferred future shape:** backend adds `hasHabits: boolean` to the `/recommendations` response envelope so the empty state needs no cross-feature read. Tracked in §8 #11.
+
+4. **Cooldown copy must name the habit.** The dismiss toast and any "you won't see this again" affordance must reference *which habit and which category* are silenced. Cooldown is per `(user, habit, category)` — saying "you won't see this for two weeks" implies the whole coach goes quiet, which is false. **Mitigation:** `lib/cooldown-message.ts` exports `formatCooldownToast({ habitName, category, days })`. Default copy: `"Dismissed — we'll hold this suggestion for ${habitName} for the next 14 days."` `category` is reserved for a future variant that names the suggestion type (e.g. "reminder timing tips for {habitName}"), not exposed in v1.
 
 5. **More than 10 active recommendations.** Unlikely given cooldown + worker dedup, but possible (6 categories × multiple habits). **Mitigation:** feed renders all; sticky priority sort. No pagination in WP6+7. If feed length exceeds 20, surface a "Showing X insights — older ones first" footer.
 
 6. **Stale `action_payload` after habit edit.** Recommendation was created when habit `preferred_time` was 09:00, suggested moving to 18:00. User then edited the habit to `preferred_time` 17:00. The reschedule rec is now near-redundant. **Mitigation:** backend should mark such recs as `expired` when the underlying condition changes. If not, the frontend renders with no special treatment; users dismiss what no longer applies. Backend question §8 #5.
 
-7. **Suspicious AI payload escapes safety filter (regression).** A 300-char body, or a URL slips through. **Mitigation:** §1 — render as-is, emit `recommendation.suspicious` client event for backend observability. No client-side text mutation.
+7. **Suspicious AI payload escapes safety filter (regression).** A 300-char body, or a URL slips through. **Mitigation (two layers):** (a) **text policy** — render as-is, emit `recommendation.suspicious` client event for backend observability. No client-side text mutation. (b) **layout policy** — §3.4 `max-h` + `overflow-hidden` + `line-clamp-*` constrains the card so a runaway payload cannot break the feed grid. The combination preserves "render what the server sent" without surrendering layout integrity.
 
-8. **AI source badge confuses users.** "What does AI insight mean? Did you read my data?" **Mitigation:** tooltip on the badge with one sentence + a link to a brief "How insights are generated" doc. Honest, brief, no marketing fluff. Copy reviewed before ship.
+8. **AI source badge confuses users.** "What does AI insight mean? Did you read my data?" **Mitigation:** tooltip on the badge with one sentence + a link to a brief "How insights are generated" doc. Honest, brief, no marketing fluff. Copy reviewed before ship. Tooltip body is wrapped in `<VariantSlot id="coach.source.tooltip">` since it's chrome — backend doesn't author this text.
 
-9. **Telemetry storm on coach mount.** 8 recommendations → 8 `recommendation.shown` events on initial render. **Mitigation:** WP4 sink batches; 5s/50-event flush absorbs this trivially.
+9. **Telemetry honesty for `recommendation.shown`.** Mount-time emission would inflate impressions: a card off-screen at the bottom of a long feed would emit `shown` even though the user never saw it. **Mitigation:** §3.5 `useImpressionTracking` uses Intersection Observer with a 50% visibility threshold and a 200ms minimum dwell time before emitting. Each `(rec.id, session)` emits at most once. WP4 telemetry contract for `recommendation.shown` is updated to specify these semantics — the schema is unchanged, only the firing rule.
 
 10. **Optimistic accept conflicts with concurrent recommendation update.** Worker creates a new rec at t=0; user accepts an existing rec at t=0.1; refetch at t=0.2 returns the new rec. The optimistic remove still hides the accepted rec, but the new rec appears. **Mitigation:** acceptable — the optimistic remove operates on a specific `id`, the refetch contains new data. They don't conflict semantically. Tests cover this scenario.
 
-11. **`experiment_variant` field arrives on a recommendation (WP8).** When rec_copy_v1 is running, backend writes the variant key. The frontend's `<VariantSlot>` reads it. **Mitigation:** the card already routes the title through `<VariantSlot id={`rec.${category}.title`}>`. WP8 implementation populates the slot registry. Coach feature requires zero changes when WP8 lands.
+11. **Worker-vs-accept race for the same `(habit, category)`.** User dismisses a `reschedule` rec at t=0; the recommendation worker processes a `habit_log.created` event at t=0.1 and would re-fire the `reschedule` rule for the same `(habit, category)`. The 14-day cooldown check (§8 #1 of this slice and CLAUDE.md WP6) is the protection — the rule's predicate consults `recommendations WHERE (user_id, habit_id, category) AND created_at > now() - 14 days`. **Mitigation:** correctness lives server-side, but worth gating in the frontend test harness so a regression in the cooldown check is caught: a Playwright/component test dismisses a rec, then fires a synthetic `habit_log.created` event, then polls for at most 5s and asserts that no rec in the same `(habit, category)` reappears. Tracked alongside §10 sequencing.
 
-12. **Habit detail's "single best rec" inline render.** If we surface one habit-relevant rec on `/habits/:id`, two questions: (a) which one (highest priority where `habitId === id`)?, (b) does accepting from there have the same side effects? **Mitigation:** the same `<RecommendationCard variant="compact">` is rendered; the habit detail page filters the active list by `habitId`. Same hooks, same invalidation matrix — no special path.
+12. **`experiment_variant` field arrives on a recommendation (WP8).** When `rec_copy_v1` is running, backend writes the variant key to `recommendation.experiment_variant` **and writes the variant-resolved title/body into `recommendation.title` and `recommendation.body`**. The frontend renders those fields verbatim — there is no client-side variant resolution for recommendation content. **Mitigation:** zero changes in the coach when WP8 lands. `<VariantSlot>` in this slice wraps only chrome (page header, accept button label, source-badge tooltip), per §3.2. Confirmation in §8 #7.
+
+13. **Habit detail's "single best rec" inline render.** If we surface one habit-relevant rec on `/habits/:id`, two questions: (a) which one (highest priority where `habitId === id`)?, (b) does accepting from there have the same side effects? **Mitigation:** the same `<RecommendationCard variant="compact">` is rendered; the habit detail page filters the active list by `habitId`. Same hooks, same invalidation matrix — no special path.
 
 ### 7.2 Architectural bottlenecks (decoupling concerns)
 
-1. **Coach must not import `features/habits` internals.** The reschedule accept patches a habit, but the coach feature should not reach into `habitKeys` directly. **Mitigation:** `features/habits/index.ts` exports `habitKeys` as part of its public surface. The coach's `_invalidation.ts` imports the keys symbolically. The coach never imports a habit *component*.
+1. **Coach must not import `features/habits` *internals*.** The reschedule accept patches a habit, and the empty-state needs habit count, but the coach feature should not reach into `features/habits/api/...` or component files directly. **Mitigation:** `features/habits/index.ts` exports `habitKeys` and `useHabits` (and `useHabitsCount` if added) as part of the public surface. The coach's `_invalidation.ts` and `CoachEmptyState.tsx` import via the barrel only. The coach never imports a habit *component* or a private hook file. A cleaner long-term shape — `hasHabits: boolean` on the `/recommendations` response — would remove even the public-barrel dependency for the empty state; recorded in §8 #11.
 
 2. **The accept side-effect matrix is policy, not code-by-code.** Hard-coding "if category === reschedule, invalidate habit" inside the mutation hook scatters knowledge. **Mitigation:** `_invalidation.ts` exposes `invalidationKeysForAccept(category): QueryKey[]`. New categories require updating one file. PR review checklist enforces this.
 
@@ -510,7 +597,7 @@ The only branch in the frontend is the badge. The card's behavior — accept, di
 
 8. **Recommendation telemetry events flood the event log.** 20-active-rec users emit 20 shown events on every coach mount. Over a month, large volume. **Mitigation:** schema-level `shown` event is intentional (used to compute click-through rate on insights, FR-???). Acceptable. WP4 sink batching keeps HTTP volume bounded.
 
-9. **Variant-aware copy ownership unclear.** If WP8 rec_copy_v1 is active, who decides what the variant text says — backend or frontend? **Mitigation:** the recommendation body always comes from the backend. WP8 backend writes the variant's body content into the recommendation row at creation time. Frontend's `<VariantSlot>` is only for the rare case where the *frontend wants its own copy variation independent of the recommendation text* (e.g. variant on the section header "Smart Coach" vs "Your Insights"). Most coach copy is server-authoritative.
+9. **Variant-aware copy ownership.** If WP8 `rec_copy_v1` is active, who decides what the variant text says — backend or frontend? **Decision:** strict split. Recommendation `title` and `body` are **server-authoritative** — backend reads the user's variant assignment at creation time and writes the resolved string into the row. The frontend renders the row's text verbatim. `<VariantSlot>` is **chrome-only** — used exclusively for copy the frontend authors (page header, action button labels, source-badge tooltip). This boundary prevents two systems from disagreeing about what to show. Confirmation that backend writes resolved title/body for `rec_copy_v1` is open question §8 #7.
 
 ---
 
@@ -519,15 +606,18 @@ The only branch in the frontend is the badge. The card's behavior — accept, di
 Confirm against §5.1.11 and §6.3 of the analysis report. None block scaffolding.
 
 1. **`GET /recommendations` endpoint exists?** CLAUDE.md describes the worker writing recs but only mentions the dashboard's direct SQL query for top-3. The coach page needs a list endpoint with `?status=active`. If absent, this is a new WP6+7 backend deliverable (small).
-2. **`PATCH /recommendations/:id { status }` for undo.** Without this, dismiss undo is local-cache only. Recommend backend adds it — idempotent and simple.
-3. **Locale on AI recommendations.** When user changes locale, do existing AI recs get translated, regenerated, or left alone? Recommended: left alone (cheapest, no surprises). §7.1 #3.
-4. **`reduce_difficulty` accept side-effect.** CLAUDE.md explicitly notes only `reschedule` patches a habit. Does accept of `reduce_difficulty` patch `habits.difficulty`, or is it acknowledgment-only? Affects §4.3 matrix row 2.
-5. **Recommendation expiry conditions.** When a rec's underlying condition no longer holds (e.g. user already moved their preferred_time before accepting the reschedule rec), does the worker mark it `expired`? Or does it sit `active` forever until cooldown clears? §7.1 #6.
-6. **Source value space.** Confirm `source ∈ {'rule', 'ai'}` exactly. Future values (e.g. `'manual'`) would change the exhaustiveness check in the badge.
-7. **`source: 'ai'` field exposure.** Confirm OpenAPI schema includes `source` and excludes `llm_*` cost columns. We do not want token counts in the user-facing API contract.
-8. **Idempotency-Key on accept/dismiss.** Same WP4 contract — the accept mutation may be retried. Backend should treat `Idempotency-Key` as the idempotency token (returning the prior result on duplicate). Critical because `reschedule` accept is non-idempotent at the DB level (UPDATE habits) without it.
-9. **`action_payload` schema stability.** §5.2 hand-narrows it. Confirm the generated OpenAPI type matches this discriminated structure (or that it's a `Record<string, unknown>` we narrow client-side).
-10. **Maximum simultaneous active recs.** §7.1 #5. Cooldown bounds this loosely; a hard cap (e.g. 10) at the backend would simplify the feed UX.
+2. **`PATCH /recommendations/:id { status }` — deferred to v2.** v1 ships without dismiss undo (§4.4). Re-enabling undo requires an idempotent backend endpoint that flips `status` from `dismissed` back to `active`. Recommended shape: `PATCH /recommendations/:id { status: 'active' }` returning the updated row. Not a v1 blocker — listed here so we don't quietly forget.
+3. **`AcceptRecommendationResponse` envelope shape.** Critical for §5.3 mutation contexts and §4.3 invalidation matrix. Confirm the response body shape, especially: does it carry `{ recommendation, habit? }` where `habit` is present **iff** the category produced a habit side-effect (i.e. `reschedule` today, possibly `reduce_difficulty` later)? Or does the backend return only the updated recommendation and require the frontend to refetch the habit? Affects whether the accept flow has one round trip or two.
+4. **Locale on AI recommendations.** When user changes locale, do existing AI recs get translated, regenerated, or left alone? Recommended: left alone (cheapest, no surprises). §7.1 #2.
+5. **`reduce_difficulty` accept side-effect.** CLAUDE.md explicitly notes only `reschedule` patches a habit. Does accept of `reduce_difficulty` patch `habits.difficulty`, or is it acknowledgment-only? Today the §4.3 matrix treats it as acknowledgment; if backend extends, the matrix and AcceptDialog preview both need updates.
+6. **Recommendation expiry conditions.** When a rec's underlying condition no longer holds (e.g. user already moved their preferred_time before accepting the reschedule rec), does the worker mark it `expired`? Or does it sit `active` forever until cooldown clears? §7.1 #6.
+7. **WP8 `rec_copy_v1` writes resolved title/body.** Confirm that when `rec_copy_v1` is active, the recommendation worker resolves the user's variant assignment **at creation time** and writes the variant's title/body string directly into `recommendation.title` / `recommendation.body`. This is the assumption behind §3.2's "no `<VariantSlot>` around `{r.title}`" decision. If backend instead stores a variant key and expects the frontend to look up the copy, the design changes substantially.
+8. **`source` value space.** Confirm `source ∈ {'rule', 'ai'}` exactly in the OpenAPI schema. Future values (e.g. `'manual'`, `'hybrid'`) would change the exhaustiveness check in the badge.
+9. **`source: 'ai'` field exposure.** Confirm OpenAPI schema includes `source` and excludes `llm_*` cost columns. We do not want token counts in the user-facing API contract.
+10. **Idempotency-Key on accept/dismiss.** Same WP4 contract — the accept mutation may be retried. Backend should treat `Idempotency-Key` as the idempotency token (returning the prior result on duplicate). Critical because `reschedule` accept is non-idempotent at the DB level (UPDATE habits) without it.
+11. **`hasHabits: boolean` on `/recommendations` response.** Coach's empty state today distinguishes "no habits" from "habits but no recs yet" by reading the habits feature for count (acceptable per §7.2 #1). Cleaner shape: `GET /recommendations` returns `{ recommendations: [...], hasHabits: boolean }`. Removes one cross-feature coupling. Cheap on the backend (single `EXISTS` query). Not a v1 blocker.
+12. **`action_payload` schema stability.** §5.2 hand-narrows it. Confirm the generated OpenAPI type matches this discriminated structure (or that it's a `Record<string, unknown>` we narrow client-side).
+13. **Maximum simultaneous active recs.** §7.1 #5. Cooldown bounds this loosely; a hard cap (e.g. 10) at the backend would simplify the feed UX.
 
 ---
 
@@ -542,13 +632,18 @@ The slice is "done" when:
   - Optimistically updates the affected habit's `preferred_time` in both `habitKeys.detail(id)` and `habitKeys.lists()`.
   - On error, rolls both back.
   - On success, server's response replaces optimistic guess.
-- Dismiss with undo: rec disappears immediately, toast shows 5s, undo restores.
+- Accept of `reduce_difficulty` / `streak_celebration` / `encouragement_after_skip` / `consistency_reinforcement` / `retroactive_logging_reminder` removes the rec but does **not** invalidate `habitKeys.*` (matrix in §4.3).
+- Dismiss is terminal: rec disappears immediately, toast confirms cooldown with the habit name (`"Dismissed — we'll hold this suggestion for {habitName} for the next 14 days"`). No Undo affordance ships in v1.
 - AI-generated recommendations show a discreet "AI insight" pill; rule-based ones show no badge. No theatrical visual difference in the card body.
 - Locale switch (en/tr) leaves existing recommendations untranslated (no client-side translation).
-- 14-day cooldown copy is shown on dismiss confirmation in both languages.
-- `pnpm test` covers: feed render, accept reschedule with habit-cache update, accept simple category with no habit-cache update, dismiss + undo within window, dismiss + grace expires, suspicious-payload telemetry emission, exhaustiveness check on category and source unions.
-- Manual smoke: visit `/coach` → see at least one rec (after backend seeds with test events) → accept reschedule → habit detail's preferred_time reflects new value → check dashboard → top-3 reflects updated feed → dismiss another rec → undo within 5s → rec re-appears.
+- Cross-tab sync: accepting a `reschedule` rec in tab A causes tab B's habit detail page to refresh `preferred_time` without manual reload (via the `HABIT_MUTATED` BroadcastChannel message owned by the coach feature).
+- `recommendation.shown` telemetry fires only after a card has been ≥50% visible in the viewport for ≥200ms, and at most once per `(rec.id, session)` — verified with a fake `IntersectionObserver` in unit tests and a Playwright scroll test.
+- Suspicious-payload defense: a synthetic 500-char body renders without breaking the feed layout (CSS `max-h` + `line-clamp` engaged) and emits `recommendation.suspicious` with `reason: 'too_long'`.
+- Cooldown enforcement (server contract gate): a dismiss-then-synthetic-event integration test confirms the same `(habit, category)` rec does **not** reappear within 14 days. Catches a regression in the backend cooldown predicate.
+- `pnpm test` covers: feed render, accept reschedule with habit-cache update, accept simple category with no habit-cache update, dismiss terminality (no undo button, cooldown toast copy renders the habit name), suspicious-payload telemetry + layout protection, Intersection Observer impression dedup, exhaustiveness check on category and source unions.
+- Manual smoke: visit `/coach` → see at least one rec (after backend seeds with test events) → accept reschedule → habit detail's preferred_time reflects new value → check dashboard → top-3 reflects updated feed → dismiss another rec → toast shows habit-named cooldown copy → wait 30s → refetch confirms it stays dismissed.
 - Lint: `llm_tokens_input`, `llm_tokens_output`, `llm_model`, `llm_cost_cents` not referenced anywhere in `features/recommendations/components/` or `pages/`.
+- Lint: no `<VariantSlot>` wraps `{recommendation.title}` or `{recommendation.body}` (greppable rule — slot only allowed around chrome).
 
 ---
 
@@ -556,19 +651,26 @@ The slice is "done" when:
 
 **WP6 ships before WP7 conceptually**, but on the frontend they ship together — WP7 adds one field (`source`) plus one component (`<RecommendationSourceBadge>`). Sequencing within the slice:
 
-1. **`<RecommendationCard>` first** (fixture-driven). Renders for both sources, both variants. Storybook-testable without backend.
-2. **`use-recommendations` + `use-accept` + `use-dismiss` second.** Plumbing, with the invalidation matrix in place.
-3. **`/coach` page third.** Assembly.
-4. **Dashboard top-3 integration fourth.** Replace WP3's stub `<RecommendationCard>` usage with the real component (one-line change if the prop API was kept compatible — see §3.4).
-5. **`<RecommendationSourceBadge>` last.** Trivial; ships when WP7 backend confirms `source` field is in the OpenAPI spec.
+1. **`<RecommendationCard>` first** (fixture-driven). Renders for both sources, both variants. Storybook-testable without backend. CSS layout constraints (§3.4) wired from day one.
+2. **`useImpressionTracking` primitive (§3.5) second.** Lands with the card so the telemetry contract is correct from the first commit. Unit-test with a fake `IntersectionObserver`.
+3. **`use-recommendations` + `use-accept` + `use-dismiss` third.** Plumbing, with the invalidation matrix in place. `useDismiss` ships **without** an undo path.
+4. **`/coach` page fourth.** Assembly. `<CoachEmptyState>` reads habit count via `features/habits` barrel — will migrate to backend `hasHabits` if §8 #11 lands before ship.
+5. **Cross-tab `HABIT_MUTATED` wiring fifth.** Coach feature publishes; habits feature subscribes. Both sides import the message type from `features/recommendations/index.ts`.
+6. **Dashboard top-3 integration sixth.** Replace WP3's stub `<RecommendationCard>` usage with the real component (one-line change if the prop API was kept compatible — see §3.4).
+7. **`<RecommendationSourceBadge>` last.** Trivial; ships when WP7 backend confirms `source` field is in the OpenAPI spec.
 
 Dependencies on other WPs:
 
-- **WP3:** `dashboardKeys.summary()` and `habitKeys.*` are extended in the invalidation matrix.
-- **WP4:** `Idempotency-Key` on accept/dismiss (TP-1), telemetry sink for `recommendation.shown` etc. (TP-2).
+- **WP3:** `dashboardKeys.summary()` and `habitKeys.*` are read by the invalidation matrix; `features/habits/index.ts` exports `useHabitsCount` (or equivalent) for the empty state until §8 #11 lands.
+- **WP4:** `Idempotency-Key` on accept/dismiss (TP-1), telemetry sink for `recommendation.shown` / `.accepted_client` / `.dismissed_client` / `.suspicious` (TP-2). The shown contract is amended in WP4 docs to specify viewport semantics.
 - **WP5:** none directly; analytics' `bestHour` is what *triggers* the `reschedule` rule on the backend, but the frontend doesn't care.
-- **WP8:** `<VariantSlot>` may wrap the section header copy. Recommendation body itself is server-authoritative — no integration needed.
+- **WP8:** `<VariantSlot>` wraps chrome only (page header, accept button, source-badge tooltip). Recommendation title/body are server-authoritative — backend resolves `rec_copy_v1` variant text at creation time (§8 #7 confirms).
+
+Deferred to v2 (post-slice):
+
+- Dismiss undo, gated on backend `PATCH /recommendations/:id { status }` (§8 #2).
+- `hasHabits` on `/recommendations` response (§8 #11) — removes the empty-state cross-feature read.
 
 ---
 
-*End of plan. Implementation kickoff awaits sign-off and resolution of §8.*
+*End of plan v2. Implementation kickoff awaits sign-off and resolution of §8 #3 and §8 #7 (the two questions whose answers affect type-level decisions). All other §8 items are non-blocking and can be answered during or after implementation.*

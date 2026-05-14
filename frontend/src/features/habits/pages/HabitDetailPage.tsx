@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { subDays, format } from 'date-fns';
 
 import { PageHeader } from '../../../components/PageHeader';
@@ -22,6 +23,8 @@ import { HourBarChart } from '../../analytics/components/charts/HourBarChart';
 import { KpiTile } from '../../analytics/components/kpi/KpiTile';
 import { KpiTileGrid } from '../../analytics/components/kpi/KpiTileGrid';
 import type { CompletionTrendPoint, WeekdayBucket, HourBucket } from '../../analytics/types';
+import { onHabitMutated } from '../../../lib/broadcast';
+import { habitKeys } from '../../../api/query-keys';
 
 type Tab = 'overview' | 'analytics';
 
@@ -32,6 +35,19 @@ export function HabitDetailPage(): React.ReactElement {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+
+  const qc = useQueryClient();
+
+  // Cross-tab sync: when the coach feature accepts a reschedule recommendation in
+  // another tab, it broadcasts HABIT_MUTATED so this page stays fresh.
+  useEffect(() => {
+    if (!id) return;
+    return onHabitMutated((msg) => {
+      if (msg.habitId === id) {
+        void qc.invalidateQueries({ queryKey: habitKeys.detail(id) });
+      }
+    });
+  }, [id, qc]);
 
   const today = user ? resolveToday(user.timezone) : format(new Date(), 'yyyy-MM-dd');
   const yearAgo = format(subDays(new Date(), 364), 'yyyy-MM-dd');

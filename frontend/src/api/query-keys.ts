@@ -35,3 +35,8 @@ export const analyticsKeys = {
   global: () => [...analyticsKeys.all, 'global'] as const,
   habit: (habitId: string) => [...analyticsKeys.all, 'habit', habitId] as const,
 } as const;
+
+export const recommendationKeys = {
+  all: ['recommendations'] as const,
+  active: () => [...recommendationKeys.all, 'active'] as const,
+} as const;

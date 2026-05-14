@@ -72,15 +72,19 @@ export interface DashboardHabit {
   readonly todayStatus: 'completed' | 'skipped' | 'pending';
 }
 
-/** Recommendation shape returned by the dashboard endpoint. */
+/** Recommendation shape returned by the dashboard endpoint.
+ *  Kept compatible with features/recommendations Recommendation type. */
 export interface DashboardRecommendation {
   readonly id: string;
   readonly title: string;
   readonly body: string;
   readonly category: string;
+  readonly source: 'rule' | 'ai';
+  readonly status: 'active' | 'accepted' | 'dismissed' | 'expired';
   readonly priority: number;
   readonly habitId: string | null;
   readonly actionPayload: Record<string, unknown> | null;
+  readonly experimentVariant: string | null;
   readonly createdAt: string;
   readonly expiresAt: string | null;
 }

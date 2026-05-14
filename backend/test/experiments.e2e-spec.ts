@@ -354,11 +354,9 @@ describe('A/B testing subsystem (e2e)', () => {
         ],
       );
 
-      // Seed two users with known exposure and retention
-      const [u1, u2] = await Promise.all([
-        registerLoginAndGetCookie(app, `anal_u1`),
-        registerLoginAndGetCookie(app, `anal_u2`),
-      ]);
+      // Seed two users with known exposure and retention (sequential to avoid ECONNRESET)
+      const u1 = await registerLoginAndGetCookie(app, `anal_u1`);
+      const u2 = await registerLoginAndGetCookie(app, `anal_u2`);
       const userId1 = u1.userId;
       const userId2 = u2.userId;
 

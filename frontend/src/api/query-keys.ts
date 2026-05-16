@@ -40,3 +40,9 @@ export const recommendationKeys = {
   all: ['recommendations'] as const,
   active: () => [...recommendationKeys.all, 'active'] as const,
 } as const;
+
+export const experimentKeys = {
+  all: ['experiments'] as const,
+  assignments: (keys: readonly string[]) =>
+    [...experimentKeys.all, 'assignments', keys] as const,
+} as const;

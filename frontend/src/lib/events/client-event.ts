@@ -10,6 +10,10 @@ export type ClientEvent =
   | { type: 'recommendation.dismissed_client'; recommendationId: string; category: RecommendationCategory; source: RecommendationSource }
   | { type: 'recommendation.suspicious'; recommendationId: string; reason: 'too_long' | 'unexpected_html' | 'empty' }
   | { type: 'experiment.exposure'; experimentKey: string; variantKey: string; feature: string }
+  | { type: 'experiment.client_exposure'; experimentKey: string; variantKey: string; feature: string }
+  | { type: 'experiments.hydration_failed'; reason: string }
+  | { type: 'experiment.unknown_variant'; experimentKey: string; receivedKey: string }
+  | { type: 'experiment.opt_out_toggled'; optedOut: boolean }
   | { type: 'client.error'; errorCode: string; message: string; route: string }
   | { type: 'client.performance'; metric: string; value: number };
 
@@ -70,6 +74,14 @@ export function emitExposure(
   feature: string,
 ): void {
   enqueue({ type: 'experiment.exposure', experimentKey, variantKey, feature });
+}
+
+export function emitClientExposure(
+  experimentKey: string,
+  variantKey: string,
+  feature: string,
+): void {
+  enqueue({ type: 'experiment.client_exposure', experimentKey, variantKey, feature });
 }
 
 export function emitClientError(errorCode: string, message: string): void {

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 
-import { VariantSlot } from '../../auth/components/VariantSlot';
+import { VariantSlot } from '../../experiments/components/VariantSlot';
 import { DataState } from '../../../components/DataState';
 import { useHabits } from '../../habits/index';
 import { useRealtime } from '../../../lib/events/use-realtime';

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-import { VariantSlot } from '../../auth/components/VariantSlot';
+import { VariantSlot } from '../../experiments/components/VariantSlot';
 import { emitRecommendationSuspicious } from '../../../lib/events/use-emit-event';
 import { CATEGORY_META } from '../lib/category-meta';
 import { isSuspiciousPayload } from '../lib/suspicious-payload-check';

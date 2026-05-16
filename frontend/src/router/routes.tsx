@@ -15,16 +15,10 @@ import { HabitDetailPage } from '../features/habits/pages/HabitDetailPage';
 import { TrackerPage } from '../features/tracking/pages/TrackerPage';
 import { AnalyticsPage } from '../features/analytics/pages/AnalyticsPage';
 import { CoachPage } from '../features/recommendations/pages/CoachPage';
+import { SettingsPage } from '../features/settings/pages/SettingsPage';
 import { ProtectedRoute } from './ProtectedRoute';
 import { PublicOnlyRoute } from './PublicOnlyRoute';
 
-function PlaceholderPage({ title }: { readonly title: string }): React.ReactElement {
-  return (
-    <div className="flex min-h-[60vh] items-center justify-center">
-      <p className="text-sm text-gray-400">{title} — coming soon</p>
-    </div>
-  );
-}
 
 export const router = createBrowserRouter([
   { path: '/', element: <Navigate to="/dashboard" replace /> },
@@ -63,7 +57,7 @@ export const router = createBrowserRouter([
           { path: '/track',     element: <TrackerPage /> },
           { path: '/analytics', element: <AnalyticsPage /> },
           { path: '/coach',     element: <CoachPage /> },
-          { path: '/settings',  element: <PlaceholderPage title="Settings" /> },
+          { path: '/settings',  element: <SettingsPage /> },
         ],
       },
     ],

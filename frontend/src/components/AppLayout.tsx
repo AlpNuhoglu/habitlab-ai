@@ -2,6 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 
 import { useCurrentUser } from '../features/auth/api/use-current-user';
 import { useLogout } from '../features/auth/api/use-logout';
+import { ExperimentsBoundary } from '../features/experiments/components/ExperimentsBoundary';
 
 const NAV_LINKS = [
   { to: '/dashboard', label: 'Dashboard' },
@@ -78,7 +79,9 @@ export function AppLayout(): React.ReactElement {
       </nav>
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-        <Outlet />
+        <ExperimentsBoundary>
+          <Outlet />
+        </ExperimentsBoundary>
       </main>
     </div>
   );

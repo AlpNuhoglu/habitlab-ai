@@ -17,5 +17,6 @@ export {
   emitRecommendationSuspicious,
   emitImpression,
   emitExposure,
+  emitClientExposure,
   emitClientError,
 } from './client-event';

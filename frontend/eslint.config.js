@@ -27,7 +27,10 @@ export default [
   {
     // features/ must access the event sink only through use-emit-event — never directly.
     // This keeps the sink's internal modules (buffer, flusher, IDB queue) encapsulated.
+    // Exception: features/experiments internals (ExperimentsBoundary, VariantSlot) call
+    // enqueue() directly because they predate the full abstraction and own the event types.
     files: ['src/features/**/*.{ts,tsx}'],
+    ignores: ['src/features/experiments/**'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -42,6 +45,26 @@ export default [
               ],
               message:
                 'Import from lib/events through use-emit-event only: import { useEmitEvent } from "../../../lib/events/use-emit-event"',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // useAllAssignments is an experiments-internal hook.
+    // Feature code must use useVariant() or <VariantSlot> instead.
+    files: ['src/features/**/*.{ts,tsx}'],
+    ignores: ['src/features/experiments/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/features/experiments/api/use-all-assignments*'],
+              message:
+                'Do not import useAllAssignments directly — use useVariant() or <VariantSlot> from features/experiments.',
             },
           ],
         },

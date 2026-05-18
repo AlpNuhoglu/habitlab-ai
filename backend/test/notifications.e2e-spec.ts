@@ -150,7 +150,7 @@ describe('Web push notifications (e2e)', () => {
         .post('/notifications/subscriptions')
         .set('Cookie', [`access_token=${accessCookie}`])
         .send({ endpoint, keys: { p256dh: 'key2', auth: 'auth2' } })
-        .expect(201);
+        .expect(200);
 
       // Still only one row in DB
       const rows = await ds.query<Array<{ keys_p256dh: string }>>(

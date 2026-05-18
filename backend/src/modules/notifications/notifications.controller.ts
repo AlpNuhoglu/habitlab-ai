@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   HttpCode,
+  HttpStatus,
   NotFoundException,
   Param,
   ParseUUIDPipe,
@@ -34,6 +35,7 @@ export class NotificationsController {
 
   // FR-060 — subscribe to web push
   @Post('subscriptions')
+  @HttpCode(HttpStatus.OK) // default 200; set to 201 explicitly for new subscriptions below
   @ApiOperation({ summary: 'Register a push subscription (FR-060)' })
   @ApiResponse({ status: 201, description: 'New subscription created' })
   @ApiResponse({ status: 200, description: 'Existing subscription updated (same endpoint)' })
@@ -51,9 +53,7 @@ export class NotificationsController {
       userAgent: body.userAgent ?? null,
     });
 
-    // Mutate response status: 201 for new, 200 for update
-    const res = req.res;
-    if (isNew && res) res.status(201);
+    if (isNew && req.res) req.res.status(HttpStatus.CREATED);
 
     return { id: subscription.id };
   }

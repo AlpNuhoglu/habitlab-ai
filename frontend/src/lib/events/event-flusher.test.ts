@@ -12,7 +12,16 @@ const mockEnqueueOffline = enqueueOffline as ReturnType<typeof vi.fn>;
 const ENVELOPE = {
   clientEventId: 'test-id',
   occurredAt: new Date().toISOString(),
-  event: { type: 'client.error' as const, errorCode: 'E_TEST', message: 'test', route: '/' },
+  event: {
+    type: 'client.error' as const,
+    kind: 'global' as const,
+    message: 'test',
+    stack: null,
+    componentStack: null,
+    fingerprint: 'abc123def456',
+    requestId: null,
+    gitSha: 'test-sha',
+  },
 };
 
 beforeEach(() => {

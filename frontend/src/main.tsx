@@ -11,6 +11,41 @@ import { router } from './router/routes';
 import { App } from './App';
 import { ensureServiceWorker } from './features/notifications/lib/sw-registration';
 import { capturePwaInstallPrompt } from './features/notifications/components/PwaInstallPrompt';
+import { scrubError } from './lib/observability/errors/scrub-error';
+import { fingerprintError, isNewFingerprint } from './lib/observability/errors/fingerprint-error';
+import { getCurrentRequestId } from './lib/observability/request-id/request-id-store';
+import { BuildInfo } from './lib/observability/build-info';
+import { enqueue } from './lib/events/event-sink';
+import { reportWebVitals } from './lib/observability/web-vitals/report-vitals';
+
+// Install global error handlers before React mounts so startup crashes are captured.
+function emitGlobalError(raw: unknown, kind: 'global' | 'promise'): void {
+  try {
+    const scrubbed = scrubError(raw);
+    const fp = fingerprintError(scrubbed);
+    if (!isNewFingerprint(fp)) return;
+    enqueue({
+      type: 'client.error',
+      kind,
+      message: scrubbed.message,
+      stack: scrubbed.stack,
+      componentStack: null,
+      fingerprint: fp,
+      requestId: getCurrentRequestId(),
+      gitSha: BuildInfo.gitSha,
+    });
+  } catch {
+    console.error('[global error handler] failed to emit error event');
+  }
+}
+
+window.addEventListener('error', (event) => {
+  emitGlobalError(event.error, 'global');
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  emitGlobalError(event.reason, 'promise');
+});
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -59,3 +94,6 @@ createRoot(rootEl).render(
     </QueryClientProvider>
   </StrictMode>,
 );
+
+// Register Web Vitals observers after React mount.
+reportWebVitals();

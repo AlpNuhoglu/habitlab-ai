@@ -1,7 +1,13 @@
 import path from 'path';
+import { execSync } from 'child_process';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+
+const gitSha = (() => {
+  try { return execSync('git rev-parse --short HEAD').toString().trim(); }
+  catch { return 'dev'; }
+})();
 
 // See https://vitejs.dev/config/
 export default defineConfig({
@@ -22,6 +28,13 @@ export default defineConfig({
       },
     }),
   ],
+  define: {
+    __BUILD_INFO__: JSON.stringify({
+      gitSha: process.env['VITE_GIT_SHA'] ?? gitSha,
+      buildTime: new Date().toISOString(),
+      env: process.env['NODE_ENV'] ?? 'development',
+    }),
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -41,5 +54,12 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/test-setup.ts',
+    define: {
+      __BUILD_INFO__: JSON.stringify({
+        gitSha: 'test-sha',
+        buildTime: new Date().toISOString(),
+        env: 'test',
+      }),
+    },
   },
 });

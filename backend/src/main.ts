@@ -34,6 +34,7 @@ async function bootstrap(): Promise<void> {
   app.enableCors({
     origin: process.env.FRONTEND_URL ?? 'http://localhost:5173',
     credentials: true,
+    exposedHeaders: ['X-Request-Id'],
   });
 
   // OpenAPI spec for the frontend to generate types from. See CONTRIBUTING.md.

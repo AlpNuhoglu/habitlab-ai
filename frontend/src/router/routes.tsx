@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 
 import { AppLayout } from '../components/AppLayout';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 
 const NotificationsSettingsPage = lazy(() =>
   import('../features/notifications/pages/NotificationsSettingsPage').then((m) => ({
@@ -58,19 +59,21 @@ export const router = createBrowserRouter([
       {
         element: <AppLayout />,
         children: [
-          { path: '/dashboard', element: <DashboardPage /> },
-          { path: '/habits',    element: <HabitsPage /> },
-          { path: '/habits/:id', element: <HabitDetailPage /> },
-          { path: '/track',     element: <TrackerPage /> },
-          { path: '/analytics', element: <AnalyticsPage /> },
-          { path: '/coach',     element: <CoachPage /> },
-          { path: '/settings',  element: <SettingsPage /> },
+          { path: '/dashboard', element: <ErrorBoundary kind="dashboard"><DashboardPage /></ErrorBoundary> },
+          { path: '/habits',    element: <ErrorBoundary kind="habits"><HabitsPage /></ErrorBoundary> },
+          { path: '/habits/:id', element: <ErrorBoundary kind="habits"><HabitDetailPage /></ErrorBoundary> },
+          { path: '/track',     element: <ErrorBoundary kind="tracker"><TrackerPage /></ErrorBoundary> },
+          { path: '/analytics', element: <ErrorBoundary kind="analytics"><AnalyticsPage /></ErrorBoundary> },
+          { path: '/coach',     element: <ErrorBoundary kind="coach"><CoachPage /></ErrorBoundary> },
+          { path: '/settings',  element: <ErrorBoundary kind="settings"><SettingsPage /></ErrorBoundary> },
           {
             path: '/settings/notifications',
             element: (
-              <Suspense fallback={null}>
-                <NotificationsSettingsPage />
-              </Suspense>
+              <ErrorBoundary kind="notifications">
+                <Suspense fallback={null}>
+                  <NotificationsSettingsPage />
+                </Suspense>
+              </ErrorBoundary>
             ),
           },
         ],

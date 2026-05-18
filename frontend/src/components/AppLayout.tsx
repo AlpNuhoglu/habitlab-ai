@@ -5,6 +5,8 @@ import { useCurrentUser } from '../features/auth/api/use-current-user';
 import { useLogout } from '../features/auth/api/use-logout';
 import { ExperimentsBoundary } from '../features/experiments/components/ExperimentsBoundary';
 import { SwUpdateBanner, PushToast, reconcileLocalSubscription } from '../features/notifications';
+import { MaintenanceBanner } from './MaintenanceBanner';
+import { OfflineBanner } from './OfflineBanner';
 
 const NAV_LINKS = [
   { to: '/dashboard', label: 'Dashboard' },
@@ -25,6 +27,8 @@ export function AppLayout(): React.ReactElement {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <MaintenanceBanner />
+      <OfflineBanner />
       <nav className="border-b border-gray-200 bg-white">
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-6">

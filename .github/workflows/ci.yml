@@ -75,6 +75,9 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Frontend tests
+        run: pnpm --filter frontend test
+
       - name: Unit tests
         run: pnpm --filter backend test
 

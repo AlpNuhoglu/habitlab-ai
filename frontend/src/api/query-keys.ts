@@ -51,3 +51,8 @@ export const notificationKeys = {
   all: ['notifications'] as const,
   subscriptions: () => [...notificationKeys.all, 'subscriptions'] as const,
 } as const;
+
+export const observabilityKeys = {
+  all: ['observability'] as const,
+  health: () => [...observabilityKeys.all, 'health'] as const,
+} as const;

@@ -18,5 +18,4 @@ export {
   emitImpression,
   emitExposure,
   emitClientExposure,
-  emitClientError,
 } from './client-event';

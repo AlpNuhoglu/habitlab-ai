@@ -1,5 +1,3 @@
-// client.performance is in the union for type completeness but has no emitPerformance
-// helper — web-vitals integration is deferred. Add the helper when that lands.
 
 import type { RecommendationCategory, RecommendationSource } from '../../features/recommendations/types';
 
@@ -14,8 +12,10 @@ export type ClientEvent =
   | { type: 'experiments.hydration_failed'; reason: string }
   | { type: 'experiment.unknown_variant'; experimentKey: string; receivedKey: string }
   | { type: 'experiment.opt_out_toggled'; optedOut: boolean }
-  | { type: 'client.error'; errorCode: string; message: string; route: string }
-  | { type: 'client.performance'; metric: string; value: number }
+  | { type: 'client.error'; kind: 'boundary' | 'global' | 'promise'; boundaryKind?: string; message: string; stack: string | null; componentStack: string | null; fingerprint: string; requestId: string | null; gitSha: string }
+  | { type: 'client.performance'; metric: 'INP' | 'LCP' | 'CLS' | 'FCP' | 'TTFB'; value: number; rating: 'good' | 'needs-improvement' | 'poor'; delta: number; id: string; navigationType: string; attribution: Record<string, string | number | boolean | null> }
+  | { type: 'client.maintenance_state_changed'; from: string; to: string; incidentId: string | null }
+  | { type: 'client.online_state_changed'; online: boolean }
   | { type: 'push.permission_granted' }
   | { type: 'push.permission_denied' }
   | { type: 'push.subscribed'; deviceId: string }
@@ -92,14 +92,9 @@ export function emitClientExposure(
   enqueue({ type: 'experiment.client_exposure', experimentKey, variantKey, feature });
 }
 
-export function emitClientError(errorCode: string, message: string): void {
-  enqueue({
-    type: 'client.error',
-    errorCode,
-    message,
-    route: typeof window !== 'undefined' ? window.location.pathname : '',
-  });
-}
+// emitClientError removed — client.error events are only emitted from
+// lib/observability/errors/ (ErrorBoundary and window error handlers).
+// Use enqueue() directly from that module.
 
 export function emitPushPermissionGranted(): void {
   enqueue({ type: 'push.permission_granted' });

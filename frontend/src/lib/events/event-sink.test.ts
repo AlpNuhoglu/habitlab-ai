@@ -49,7 +49,7 @@ describe('enqueue — buffer cap', () => {
     await Promise.resolve();
     mockFlush.mockClear();
     // Adding one more should NOT trigger another flush (buffer was cleared)
-    enqueue({ type: 'client.error', errorCode: 'E_UNKNOWN', message: 'oops', route: '/' });
+    enqueue({ type: 'client.error', kind: 'global', message: 'oops', stack: null, componentStack: null, fingerprint: 'abc123def456', requestId: null, gitSha: 'test-sha' });
     await Promise.resolve();
     expect(mockFlush).not.toHaveBeenCalled();
   });
@@ -60,7 +60,7 @@ describe('5-second flush timer', () => {
     vi.useFakeTimers();
     render(React.createElement(EventSinkProvider, null, null));
 
-    enqueue({ type: 'client.error', errorCode: 'E_TEST', message: 'test', route: '/test' });
+    enqueue({ type: 'client.error', kind: 'global', message: 'test', stack: null, componentStack: null, fingerprint: 'abc123def456', requestId: null, gitSha: 'test-sha' });
 
     await vi.advanceTimersByTimeAsync(5_000);
 
@@ -83,7 +83,7 @@ describe('pagehide → sendBeacon', () => {
     vi.stubGlobal('navigator', { ...navigator, sendBeacon });
 
     render(React.createElement(EventSinkProvider, null, null));
-    enqueue({ type: 'client.error', errorCode: 'E_TEST', message: 'test', route: '/' });
+    enqueue({ type: 'client.error', kind: 'global', message: 'test', stack: null, componentStack: null, fingerprint: 'abc123def456', requestId: null, gitSha: 'test-sha' });
 
     window.dispatchEvent(new Event('pagehide'));
 
@@ -117,7 +117,7 @@ describe('401 response → drop buffer', () => {
 
     // Buffer should be empty after 401 — adding more events and flushing again
     // should send only the new event, not re-send old ones
-    enqueue({ type: 'client.error', errorCode: 'E_NEW', message: 'new', route: '/' });
+    enqueue({ type: 'client.error', kind: 'global', message: 'new', stack: null, componentStack: null, fingerprint: 'abc123def456', requestId: null, gitSha: 'test-sha' });
     flushNow();
     await Promise.resolve();
 

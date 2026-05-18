@@ -130,6 +130,56 @@ export default [
     },
   },
   {
+    // client.error events must only be emitted from lib/observability/errors/ and main.tsx.
+    // ErrorBoundary and the global window handlers are the canonical senders.
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/lib/observability/errors/**', 'src/lib/events/client-event.ts', 'src/main.tsx', 'src/components/ErrorBoundary.tsx'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'Literal[value="client.error"]',
+          message:
+            'client.error events must only be emitted from lib/observability/errors/. Use ErrorBoundary or the global window error handler.',
+        },
+      ],
+    },
+  },
+  {
+    // lib/observability/ is below features/ in the dependency graph — it must not import from features/.
+    files: ['src/lib/observability/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['../../features/**', '../../../features/**', '../../../../features/**'],
+              message: 'lib/observability must not import from features/ — it is cross-cutting infrastructure.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // window.addEventListener("error", ...) must only be registered in main.tsx.
+    // A second handler would re-emit the same error or swallow it.
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/main.tsx'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            'CallExpression[callee.object.name="window"][callee.property.name="addEventListener"][arguments.0.value="error"]',
+          message:
+            'window.addEventListener("error") must only be registered in main.tsx — a second handler risks duplicate or swallowed error reports.',
+        },
+      ],
+    },
+  },
+  {
     files: ['src/**/*.{ts,tsx}'],
     languageOptions: {
       parser: tsParser,

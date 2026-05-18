@@ -1,4 +1,6 @@
 import { refreshOnce } from './refresh-mutex';
+import { extractRequestId } from '../lib/observability/request-id/capture-response';
+import { captureRequestId } from '../lib/observability/request-id/request-id-store';
 
 export type ApiError =
   | { kind: 'network' }
@@ -89,6 +91,9 @@ async function apiFetchImpl<T>(
   } catch {
     throw new ApiException({ kind: 'network' });
   }
+
+  const reqId = extractRequestId(res);
+  if (reqId) captureRequestId(reqId, path);
 
   if (res.ok) {
     if (res.status === 204) return undefined as T;

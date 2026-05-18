@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { OptOutToggle } from '../../experiments/components/OptOutToggle';
 
 export function SettingsPage(): React.ReactElement {
@@ -7,6 +8,19 @@ export function SettingsPage(): React.ReactElement {
         <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
         <p className="mt-1 text-sm text-gray-500">Manage your account preferences</p>
       </div>
+
+      <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+        <h2 className="text-base font-semibold text-gray-900">Notifications</h2>
+        <p className="mt-1 mb-4 text-sm text-gray-500">
+          Manage push reminders and quiet hours.
+        </p>
+        <Link
+          to="/settings/notifications"
+          className="inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-700"
+        >
+          Manage notifications →
+        </Link>
+      </section>
 
       <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
         <h2 className="text-base font-semibold text-gray-900">Experiments</h2>

@@ -1,6 +1,13 @@
+import { lazy, Suspense } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 
 import { AppLayout } from '../components/AppLayout';
+
+const NotificationsSettingsPage = lazy(() =>
+  import('../features/notifications/pages/NotificationsSettingsPage').then((m) => ({
+    default: m.NotificationsSettingsPage,
+  })),
+);
 import { AuthLayout } from '../features/auth/components/AuthLayout';
 import { ForgotPasswordPage } from '../features/auth/pages/ForgotPasswordPage';
 import { LoginPage } from '../features/auth/pages/LoginPage';
@@ -58,6 +65,14 @@ export const router = createBrowserRouter([
           { path: '/analytics', element: <AnalyticsPage /> },
           { path: '/coach',     element: <CoachPage /> },
           { path: '/settings',  element: <SettingsPage /> },
+          {
+            path: '/settings/notifications',
+            element: (
+              <Suspense fallback={null}>
+                <NotificationsSettingsPage />
+              </Suspense>
+            ),
+          },
         ],
       },
     ],

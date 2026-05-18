@@ -54,7 +54,9 @@ describe('<OptOutToggle>', () => {
   it('optimistically flips and rolls back on error', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
 
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
     qc.setQueryData(authKeys.me(), makeUser(false));
 
     render(<OptOutToggle />, { wrapper: makeWrapper(qc) });

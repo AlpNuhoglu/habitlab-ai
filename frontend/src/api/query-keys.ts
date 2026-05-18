@@ -46,3 +46,8 @@ export const experimentKeys = {
   assignments: (keys: readonly string[]) =>
     [...experimentKeys.all, 'assignments', keys] as const,
 } as const;
+
+export const notificationKeys = {
+  all: ['notifications'] as const,
+  subscriptions: () => [...notificationKeys.all, 'subscriptions'] as const,
+} as const;

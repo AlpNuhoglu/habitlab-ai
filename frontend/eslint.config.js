@@ -72,6 +72,64 @@ export default [
     },
   },
   {
+    // navigator.serviceWorker.* must only be accessed from sw-registration.ts.
+    // All other SW access goes through that module to keep the boundary mechanical.
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: [
+      'src/features/notifications/lib/sw-registration.ts',
+      'src/service-worker/**',
+      // DeviceList needs pushManager.getSubscription() for unsubscribe flow
+      'src/features/notifications/components/DeviceList.tsx',
+      'src/features/notifications/components/MasterPushToggle.tsx',
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'MemberExpression[object.property.name="serviceWorker"]',
+          message:
+            'Access navigator.serviceWorker only through features/notifications/lib/sw-registration.ts.',
+        },
+      ],
+    },
+  },
+  {
+    // Notification.requestPermission() must only be called from use-push-permission.ts.
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/features/notifications/hooks/use-push-permission.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            'CallExpression[callee.object.name="Notification"][callee.property.name="requestPermission"]',
+          message:
+            'Notification.requestPermission() must only be called from features/notifications/hooks/use-push-permission.ts.',
+        },
+      ],
+    },
+  },
+  {
+    // SW handler/entry files must not import from src/features/ or src/lib/ — those modules
+    // use DOM APIs unavailable in the ServiceWorker context.
+    // (service-worker/lib/ is the SW-safe lib; that import resolves to ../lib/ which is fine.)
+    files: ['src/service-worker/sw.ts', 'src/service-worker/handlers/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['../../features/**', '../../lib/**', '../../../features/**'],
+              message:
+                'SW files may not import from src/features/ or src/lib/ — DOM APIs are unavailable in the SW context. Use service-worker/lib/ helpers instead.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['src/**/*.{ts,tsx}'],
     languageOptions: {
       parser: tsParser,

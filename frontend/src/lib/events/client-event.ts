@@ -15,7 +15,15 @@ export type ClientEvent =
   | { type: 'experiment.unknown_variant'; experimentKey: string; receivedKey: string }
   | { type: 'experiment.opt_out_toggled'; optedOut: boolean }
   | { type: 'client.error'; errorCode: string; message: string; route: string }
-  | { type: 'client.performance'; metric: string; value: number };
+  | { type: 'client.performance'; metric: string; value: number }
+  | { type: 'push.permission_granted' }
+  | { type: 'push.permission_denied' }
+  | { type: 'push.subscribed'; deviceId: string }
+  | { type: 'push.unsubscribed'; deviceId: string }
+  | { type: 'push.opened'; notificationId?: string | undefined; habitId?: string | undefined }
+  | { type: 'push.install_prompt_shown' }
+  | { type: 'push.install_prompt_accepted' }
+  | { type: 'push.install_prompt_dismissed' };
 
 export interface ClientEventEnvelope {
   readonly clientEventId: string;
@@ -91,4 +99,39 @@ export function emitClientError(errorCode: string, message: string): void {
     message,
     route: typeof window !== 'undefined' ? window.location.pathname : '',
   });
+}
+
+export function emitPushPermissionGranted(): void {
+  enqueue({ type: 'push.permission_granted' });
+}
+
+export function emitPushPermissionDenied(): void {
+  enqueue({ type: 'push.permission_denied' });
+}
+
+export function emitPushSubscribed(deviceId: string): void {
+  enqueue({ type: 'push.subscribed', deviceId });
+}
+
+export function emitPushUnsubscribed(deviceId: string): void {
+  enqueue({ type: 'push.unsubscribed', deviceId });
+}
+
+export function emitPushOpened(notificationId?: string, habitId?: string): void {
+  const evt: ClientEvent = { type: 'push.opened' };
+  if (notificationId !== undefined) (evt as Record<string, unknown>)['notificationId'] = notificationId;
+  if (habitId !== undefined) (evt as Record<string, unknown>)['habitId'] = habitId;
+  enqueue(evt);
+}
+
+export function emitInstallPromptShown(): void {
+  enqueue({ type: 'push.install_prompt_shown' });
+}
+
+export function emitInstallPromptAccepted(): void {
+  enqueue({ type: 'push.install_prompt_accepted' });
+}
+
+export function emitInstallPromptDismissed(): void {
+  enqueue({ type: 'push.install_prompt_dismissed' });
 }

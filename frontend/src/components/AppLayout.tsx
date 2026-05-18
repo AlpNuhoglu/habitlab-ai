@@ -1,8 +1,10 @@
+import { useEffect } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 
 import { useCurrentUser } from '../features/auth/api/use-current-user';
 import { useLogout } from '../features/auth/api/use-logout';
 import { ExperimentsBoundary } from '../features/experiments/components/ExperimentsBoundary';
+import { SwUpdateBanner, PushToast, reconcileLocalSubscription } from '../features/notifications';
 
 const NAV_LINKS = [
   { to: '/dashboard', label: 'Dashboard' },
@@ -15,6 +17,11 @@ const NAV_LINKS = [
 export function AppLayout(): React.ReactElement {
   const { user } = useCurrentUser();
   const logout = useLogout();
+
+  const userId = user?.id;
+  useEffect(() => {
+    if (userId) void reconcileLocalSubscription(userId);
+  }, [userId]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -83,6 +90,9 @@ export function AppLayout(): React.ReactElement {
           <Outlet />
         </ExperimentsBoundary>
       </main>
+
+      <SwUpdateBanner />
+      <PushToast />
     </div>
   );
 }

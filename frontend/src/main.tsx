@@ -9,6 +9,8 @@ import { authKeys } from './api/query-keys';
 import { onAuthMessage } from './lib/broadcast';
 import { router } from './router/routes';
 import { App } from './App';
+import { ensureServiceWorker } from './features/notifications/lib/sw-registration';
+import { capturePwaInstallPrompt } from './features/notifications/components/PwaInstallPrompt';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -38,6 +40,14 @@ onAuthMessage((msg) => {
     void queryClient.invalidateQueries({ queryKey: authKeys.me() });
   }
 });
+
+// Capture beforeinstallprompt before React renders.
+capturePwaInstallPrompt();
+
+// Register SW on prod and when explicitly opted-in during dev.
+if (import.meta.env.PROD || import.meta.env['VITE_SW_DEV'] === 'true') {
+  void ensureServiceWorker();
+}
 
 const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('#root not found in index.html');

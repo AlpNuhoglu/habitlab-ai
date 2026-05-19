@@ -36,6 +36,11 @@ import { RecommendationsModule } from './modules/recommendations/recommendations
         migrations: [__dirname + '/migrations/*{.ts,.js}'],
         synchronize: false,
         logging: config.get<string>('NODE_ENV') !== 'production',
+        // Keep the pool small in test so sequential e2e suites don't exhaust
+        // Postgres max_connections when suites boot/close back-to-back.
+        ...(process.env['NODE_ENV'] === 'test'
+          ? { extra: { max: 3, idleTimeoutMillis: 1000 } }
+          : {}),
       }),
     }),
     InfrastructureModule,

@@ -1,9 +1,12 @@
+import { useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { dashboardKeys } from '../../../api/query-keys';
 import { DataState } from '../../../components/DataState';
 import { useRealtime } from '../../../lib/events/use-realtime';
 import { useDashboard } from '../api/use-dashboard';
+import { useAcceptRecommendation } from '../../recommendations/api/use-accept-recommendation';
+import { useDismissRecommendation } from '../../recommendations/api/use-dismiss-recommendation';
 import { RecommendationCard } from '../../recommendations/components/RecommendationCard';
 import type { Recommendation } from '../../recommendations/types';
 import { DashboardGreeting } from '../components/DashboardGreeting';
@@ -14,6 +17,8 @@ import { TodayList } from '../components/TodayList';
 export function DashboardPage(): React.ReactElement {
   const queryClient = useQueryClient();
   const { isPending, isError, data } = useDashboard();
+  const accept = useAcceptRecommendation();
+  const dismiss = useDismissRecommendation();
 
   // Stub: no-op until SSE lands. When useRealtime is wired to a real transport,
   // this invalidation fires without touching this component.
@@ -22,6 +27,25 @@ export function DashboardPage(): React.ReactElement {
     onEvent: () => void queryClient.invalidateQueries({ queryKey: dashboardKeys.summary() }),
     enabled: false,
   });
+
+  const habitNameById = useMemo(
+    () => new Map(data?.habits.map((h) => [h.id, h.name]) ?? []),
+    [data?.habits],
+  );
+
+  function handleAccept(rec: Recommendation) {
+    accept.mutate({
+      recommendation: rec,
+      habitName: rec.habitId ? (habitNameById.get(rec.habitId) ?? null) : null,
+    });
+  }
+
+  function handleDismiss(rec: Recommendation) {
+    dismiss.mutate({
+      recommendation: rec,
+      habitName: rec.habitId ? (habitNameById.get(rec.habitId) ?? rec.category) : rec.category,
+    });
+  }
 
   return (
     <div className="space-y-8">
@@ -51,6 +75,10 @@ export function DashboardPage(): React.ReactElement {
                       key={r.id}
                       recommendation={r as unknown as Recommendation}
                       index={i}
+                      onAccept={handleAccept}
+                      onDismiss={handleDismiss}
+                      isAccepting={accept.isPending}
+                      isDismissing={dismiss.isPending}
                       compact
                     />
                   ))}

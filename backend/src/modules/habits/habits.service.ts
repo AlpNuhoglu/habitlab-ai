@@ -129,14 +129,14 @@ export interface HabitDto {
   difficulty: number;
   isActive: boolean;
   archivedAt: Date | null;
+  currentStreak: number;
+  completionRate30d: number;
   createdAt: Date;
   updatedAt: Date;
 }
 
 export interface HabitDetailDto extends HabitDto {
-  currentStreak: number;
   longestStreak: number;
-  completionRate30d: number;
 }
 
 export interface HabitListDto {
@@ -198,12 +198,39 @@ export class HabitsService {
 
   async listHabits(userId: string, opts: ListHabitsOptions): Promise<HabitListDto> {
     const [habits, total] = await this.habitRepo.findAll(userId, opts);
-    return {
-      data: habits.map(toHabitDto),
-      total,
-      limit: opts.limit,
-      offset: opts.offset,
-    };
+
+    if (habits.length === 0) {
+      return { data: [], total, limit: opts.limit, offset: opts.offset };
+    }
+
+    const timezone = await this.getUserTimezone(userId);
+    const today = todayInTimezone(timezone);
+    const from30 = subtractDays(today, 29);
+    const habitIds = habits.map((h) => h.id);
+
+    const rateRows = await this.dataSource.query<Array<{ habit_id: string; count: string }>>(
+      `SELECT habit_id, COUNT(*)::int AS count
+       FROM habit_logs
+       WHERE user_id = $1 AND habit_id = ANY($2) AND log_date >= $3 AND log_date <= $4 AND status = 'completed'
+       GROUP BY habit_id`,
+      [userId, habitIds, from30, today],
+    );
+    const rateMap = new Map<string, number>(
+      rateRows.map((r) => [r.habit_id, parseInt(r.count, 10) / 30]),
+    );
+
+    const data: HabitDto[] = await Promise.all(
+      habits.map(async (habit) => {
+        const completedDates = await this.habitLogRepo.findCompletedDates(userId, habit.id);
+        return {
+          ...toHabitDto(habit),
+          currentStreak: computeCurrentStreak(completedDates, today),
+          completionRate30d: Math.round((rateMap.get(habit.id) ?? 0) * 100) / 100,
+        };
+      }),
+    );
+
+    return { data, total, limit: opts.limit, offset: opts.offset };
   }
 
   // ─── Create habit (FR-020) ────────────────────────────────────────────────
@@ -739,6 +766,8 @@ function toHabitDto(habit: Habit): HabitDto {
     difficulty: habit.difficulty,
     isActive: habit.isActive,
     archivedAt: habit.archivedAt,
+    currentStreak: 0,
+    completionRate30d: 0,
     createdAt: habit.createdAt,
     updatedAt: habit.updatedAt,
   };

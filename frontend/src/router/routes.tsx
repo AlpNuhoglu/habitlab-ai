@@ -26,10 +26,14 @@ import { CoachPage } from '../features/recommendations/pages/CoachPage';
 import { SettingsPage } from '../features/settings/pages/SettingsPage';
 import { ProtectedRoute } from './ProtectedRoute';
 import { PublicOnlyRoute } from './PublicOnlyRoute';
+import { ShowcasePage } from '../features/showcase/pages/ShowcasePage';
 
 
 export const router = createBrowserRouter([
   { path: '/', element: <Navigate to="/dashboard" replace /> },
+
+  // Showcase — no auth guard
+  { path: '/showcase', element: <ShowcasePage /> },
 
   // Logout — no auth guard
   { path: '/logout', element: <LogoutPage /> },

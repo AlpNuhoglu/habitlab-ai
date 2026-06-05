@@ -6,7 +6,7 @@ import { DataSource } from 'typeorm';
 import { LLM_PROVIDER, LLMProvider } from '../../infrastructure/llm/llm-provider.interface';
 import { LlmCostService } from '../recommendations/llm-cost.service';
 import { applyCoachSafetyFilter } from './chat-safety.filter';
-import type { ChatMessageDto, ChatHistoryDto } from './dto/chat-message.dto';
+import { ChatMessageDto, ChatHistoryDto } from './dto/chat-message.dto';
 
 // §approved — 600 tokens for chat (vs 150 for rec cards) to allow deep behavioral insights
 const CHAT_MAX_TOKENS = 600;

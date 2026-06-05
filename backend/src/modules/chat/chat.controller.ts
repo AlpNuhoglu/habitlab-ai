@@ -12,7 +12,7 @@ import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 
 import { ChatService } from './chat.service';
-import type { ChatHistoryDto, ChatMessageDto } from './dto/chat-message.dto';
+import { ChatHistoryDto, ChatMessageDto } from './dto/chat-message.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 
 interface RequestUser {

@@ -447,7 +447,7 @@ function WeeklyDotsWidget({ habit }: { habit: ShowcaseHabit | undefined }) {
   return (
     <Card className="p-5">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-zinc-200">This week's consistency</h3>
+        <h3 className="text-sm font-semibold text-zinc-200">This week&apos;s consistency</h3>
         <StatPill color="emerald">{completedCount}/7 days</StatPill>
       </div>
       <div className="flex items-center justify-between">

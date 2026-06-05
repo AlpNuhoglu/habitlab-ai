@@ -10,10 +10,11 @@ import { OfflineBanner } from './OfflineBanner';
 
 const NAV_LINKS = [
   { to: '/dashboard', label: 'Dashboard' },
-  { to: '/habits',   label: 'Habits'    },
-  { to: '/track',    label: 'Tracker'   },
+  { to: '/habits',    label: 'Habits'    },
+  { to: '/track',     label: 'Tracker'   },
   { to: '/analytics', label: 'Analytics' },
-  { to: '/settings', label: 'Settings'  },
+  { to: '/coach',     label: 'AI Coach'  },
+  { to: '/settings',  label: 'Settings'  },
 ] as const;
 
 export function AppLayout(): React.ReactElement {

@@ -3,6 +3,7 @@ import type { ConfigService } from '@nestjs/config';
 import OpenAI, { APIError } from 'openai';
 
 import type { LLMPrompt, LLMProvider, LLMResponse } from './llm-provider.interface';
+import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 
 // gpt-4o-mini pricing (cents per 1K tokens)
 const INPUT_CENTS_PER_1K = 0.015;
@@ -34,14 +35,19 @@ export class OpenAILlmProvider implements LLMProvider {
   async complete(prompt: LLMPrompt): Promise<LLMResponse | null> {
     for (let attempt = 0; attempt <= 1; attempt++) {
       try {
+        const messages: ChatCompletionMessageParam[] = [
+          { role: 'system', content: prompt.system },
+          ...(prompt.history ?? []).map(
+            (m): ChatCompletionMessageParam => ({ role: m.role, content: m.content }),
+          ),
+          { role: 'user', content: prompt.user },
+        ];
+
         const completion = await this.client.chat.completions.create({
           model: this.model,
           temperature: TEMPERATURE,
-          max_tokens: MAX_TOKENS,
-          messages: [
-            { role: 'system', content: prompt.system },
-            { role: 'user', content: prompt.user },
-          ],
+          max_tokens: prompt.maxTokens ?? MAX_TOKENS,
+          messages,
         });
 
         const text = completion.choices[0]?.message?.content?.trim() ?? '';
@@ -56,8 +62,17 @@ export class OpenAILlmProvider implements LLMProvider {
           costCents: calcCostCents(tokensInput, tokensOutput),
         };
       } catch (err: unknown) {
+        // 429 with code=insufficient_quota is a billing error, not a transient rate limit —
+        // retrying wastes 2s and counts against the circuit breaker unnecessarily.
+        const isQuotaExceeded =
+          err instanceof APIError &&
+          err.status === 429 &&
+          (err as APIError & { error?: { code?: string } }).error?.code === 'insufficient_quota';
+
         const isRetryable =
-          err instanceof APIError && (err.status === 429 || (err.status ?? 0) >= 500);
+          !isQuotaExceeded &&
+          err instanceof APIError &&
+          (err.status === 429 || (err.status ?? 0) >= 500);
 
         if (isRetryable && attempt === 0) {
           this.logger.warn(`OpenAI transient error (${String(err)}), retrying in ${RETRY_DELAY_MS}ms`);

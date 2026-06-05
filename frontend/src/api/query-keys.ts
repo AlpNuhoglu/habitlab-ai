@@ -56,3 +56,8 @@ export const observabilityKeys = {
   all: ['observability'] as const,
   health: () => [...observabilityKeys.all, 'health'] as const,
 } as const;
+
+export const chatKeys = {
+  all: ['chat'] as const,
+  history: () => [...chatKeys.all, 'history'] as const,
+} as const;

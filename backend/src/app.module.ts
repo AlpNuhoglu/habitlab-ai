@@ -16,6 +16,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { EventsModule } from './modules/events/events.module';
 import { ExperimentsModule } from './modules/experiments/experiments.module';
 import { HabitsModule } from './modules/habits/habits.module';
+import { ChatModule } from './modules/chat/chat.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { RecommendationsModule } from './modules/recommendations/recommendations.module';
 
@@ -50,6 +51,7 @@ import { RecommendationsModule } from './modules/recommendations/recommendations
     AnalyticsModule,
     ExperimentsModule,
     RecommendationsModule,
+    ChatModule,
     NotificationsModule,
   ],
   controllers: [HealthController],

@@ -11,6 +11,7 @@ import { NullCacheAdapter } from './cache/null-cache.adapter';
 import { RedisCacheAdapter } from './cache/redis-cache.adapter';
 import { LLM_PROVIDER } from './llm/llm-provider.interface';
 import { NullLlmProvider } from './llm/null-llm.provider';
+import { OllamaLlmProvider } from './llm/ollama-llm.provider';
 import { OpenAILlmProvider } from './llm/openai-llm.provider';
 import { MAIL_SERVICE, NullMailService, ResendMailService } from './mail/mail.service';
 import { AppLoggerService } from './logger/app-logger.service';
@@ -62,10 +63,19 @@ function shouldUseStub(config: ConfigService): boolean {
     {
       provide: LLM_PROVIDER,
       useFactory: (config: ConfigService) => {
-        if (shouldUseStub(config) || !config.get<string>('OPENAI_API_KEY')) {
-          return new NullLlmProvider();
+        if (shouldUseStub(config)) return new NullLlmProvider();
+
+        const ollamaUrl = config.get<string>('OLLAMA_BASE_URL');
+        if (ollamaUrl) {
+          const model = config.get<string>('OLLAMA_MODEL') ?? 'llama3.2';
+          return new OllamaLlmProvider(ollamaUrl, model);
         }
-        return new OpenAILlmProvider(config);
+
+        if (config.get<string>('OPENAI_API_KEY')) {
+          return new OpenAILlmProvider(config);
+        }
+
+        return new NullLlmProvider();
       },
       inject: [ConfigService],
     },

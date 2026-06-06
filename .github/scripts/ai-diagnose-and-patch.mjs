@@ -56,7 +56,18 @@ Rules:
 - The diff must touch only files necessary to fix the reported failure.
 - Never modify CI workflow files, lockfiles, or migration files.
 - If you cannot identify a precise fix, set "confident": false and leave
-  "diff" as an empty string — do not guess.`;
+  "diff" as an empty string — do not guess.
+- For unused variable lint errors: the fix is always to delete the offending
+  line entirely. That is a confident, precise fix — set "confident": true.
+
+Example of a valid unified diff for deleting line 62 from backend/src/main.ts:
+--- a/backend/src/main.ts
++++ b/backend/src/main.ts
+@@ -60,4 +60,3 @@
+ });
+-
+-const aiFixer2 = 'trigger-ai-fixer-round2';
+`;
 
 const userPrompt = `CI run: ${runUrl}\nCommit: ${headSha}\n\nTrailing failure log:\n\n${log}`;
 
@@ -92,11 +103,15 @@ try {
 
   const completion = await res.json();
   const text = completion?.message?.content?.trim() ?? '';
+  console.log('--- raw model response ---');
+  console.log(text);
+  console.log('--- end model response ---');
   parsed = JSON.parse(text);
 } catch (err) {
   failClean(`LLM call or response parsing failed: ${err.message}`);
 }
 
+console.log(`confident=${parsed.confident} diff_length=${parsed.diff?.length ?? 0}`);
 if (!parsed.confident || !parsed.diff || !parsed.diff.trim()) {
   failClean('model was not confident enough to propose a patch');
 }

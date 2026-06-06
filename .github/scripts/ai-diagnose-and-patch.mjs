@@ -88,7 +88,16 @@ try {
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
-        format: 'json',
+        format: {
+          type: 'object',
+          properties: {
+            confident:   { type: 'boolean' },
+            summary:     { type: 'string' },
+            explanation: { type: 'string' },
+            diff:        { type: 'string' },
+          },
+          required: ['confident', 'summary', 'explanation', 'diff'],
+        },
         stream: false,
         options: { temperature: 0 },
       }),

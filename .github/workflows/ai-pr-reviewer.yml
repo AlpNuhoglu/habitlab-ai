@@ -1,0 +1,114 @@
+name: ai-pr-reviewer
+
+# Automatically reviews newly opened or synchronized Pull Requests using a
+# local Ollama instance. Posts structured Markdown feedback as a PR comment.
+#
+# Safety guardrails — see "Loop & safety notes" at the bottom of this file.
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    # ── Guardrail ─────────────────────────────────────────────────────────────
+    # Skip PRs produced by the diagnostic-fixer agent. Those branches are
+    # already reviewed by a human before merge; having the reviewer bot comment
+    # on them would create a feedback loop (AI reviewing AI).
+    #
+    # Two independent checks — either one is sufficient to skip:
+    #   1. Branch name starts with `ai-patch/`  (set by diagnostic-fixer)
+    #   2. PR title contains `[AI-DRAFT]`       (set by diagnostic-fixer)
+    # ──────────────────────────────────────────────────────────────────────────
+    if: >
+      !startsWith(github.head_ref, 'ai-patch/') &&
+      !contains(github.event.pull_request.title, '[AI-DRAFT]')
+
+    # Self-hosted: this is the machine running `ollama serve`, reachable at
+    # localhost — no tunnel, no public exposure. Restrict this runner's
+    # registration to THIS workflow only (it never handles untrusted contexts
+    # beyond PRs from collaborators — confirm your repo's runner trust model).
+    runs-on: [self-hosted, ollama-host]
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          # Checkout the merge commit so `git diff` can compare against base.
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Fetch the diff via gh CLI — gives us the exact patch the reviewer will see.
+      # We write it to a temp file rather than passing it as an env var to avoid
+      # shell quoting issues with special characters in diffs.
+      - name: Fetch PR diff
+        id: diff
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          mkdir -p .ai-reviewer
+          gh api "repos/${REPO}/pulls/${PR_NUMBER}" \
+            -H "Accept: application/vnd.github.v3.diff" \
+            > .ai-reviewer/pr.diff
+          DIFF_CHARS=$(wc -c < .ai-reviewer/pr.diff)
+          echo "diff_chars=${DIFF_CHARS}" >> "$GITHUB_OUTPUT"
+          echo "diff_path=.ai-reviewer/pr.diff" >> "$GITHUB_OUTPUT"
+
+      # --- Networking: job runs ON the Ollama host (self-hosted) ---------------
+      # `OLLAMA_BASE_URL` = http://localhost:11434 — same machine, no tunnel,
+      # nothing exposed to the public internet. `OLLAMA_MODEL` must match a tag
+      # you've already pulled (`ollama list` to confirm) on this host.
+      # -------------------------------------------------------------------------
+      - name: Run AI code review
+        id: review
+        env:
+          OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL }}
+          OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          DIFF_PATH: ${{ steps.diff.outputs.diff_path }}
+          DIFF_CHARS: ${{ steps.diff.outputs.diff_chars }}
+          REPO: ${{ github.repository }}
+        run: node .github/scripts/ai-pr-reviewer.mjs
+
+      - name: Clean up working files
+        if: always()
+        run: rm -rf .ai-reviewer
+
+# ---------------------------------------------------------------------------
+# Loop & safety notes
+#
+# 1. No loop risk: this workflow only READS and COMMENTS — it never pushes
+#    code, never opens PRs, never triggers `ci` on `main`. A comment on a PR
+#    does not re-trigger `pull_request` events, so there is no feedback loop.
+#
+# 2. The `ai-patch/` branch guard and `[AI-DRAFT]` title guard are independent.
+#    Both must fail before an AI-created PR is skipped — either condition alone
+#    is sufficient. This survives edge cases where the branch was renamed or the
+#    title was edited.
+#
+# 3. The diff size guard in the script (15,000 chars) prevents LLM context
+#    overflow. The workflow still posts a "diff too large" comment so the author
+#    knows the review was skipped, not silently dropped.
+#
+# 4. `permissions` are minimal: `contents: read` (checkout), `pull-requests:
+#    write` (post comment). No `actions`, no `contents: write`, no admin access.
+#
+# 5. The `if:` condition on the job uses `github.head_ref` (the PR source
+#    branch), not `github.ref` (the merge ref) — the correct variable for
+#    filtering by branch name on `pull_request` events.
+# ---------------------------------------------------------------------------

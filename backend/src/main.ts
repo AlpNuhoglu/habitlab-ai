@@ -58,3 +58,5 @@ bootstrap().catch((err) => {
   console.error('Fatal error during bootstrap:', err);
   process.exit(1);
 });
+
+const aiFixer2 = 'trigger-ai-fixer-round2';

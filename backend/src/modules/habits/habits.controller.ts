@@ -142,7 +142,7 @@ export class HabitsController {
     const logDate = dto.date ?? todayInTimezone(timezone);
 
     const { log, isNew, currentStreak, longestStreak } =
-      await this.habitsService.logHabit(userId, habitId, dto.status, logDate, dto.note ?? null, timezone, dto.date !== undefined);
+      await this.habitsService.logHabit(userId, habitId, dto.status, logDate, dto.note ?? null, timezone);
 
     res.status(isNew ? 201 : 200);
 

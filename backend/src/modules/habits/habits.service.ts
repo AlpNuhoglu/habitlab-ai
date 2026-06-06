@@ -31,18 +31,17 @@ function subtractDays(dateStr: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-// maxDaysBack=7 for quick-log (dashboard); pass 365 for tracker historical edits.
-function validateLogDate(logDate: string, timezone: string, maxDaysBack = 7): void {
+function validateLogDate(logDate: string, timezone: string): void {
   const today = todayInTimezone(timezone);
-  const cutoff = subtractDays(today, maxDaysBack);
+  const sevenDaysAgo = subtractDays(today, 7);
 
   if (logDate > today) {
     throw new BadRequestException({ code: 'FUTURE_DATE', message: 'Cannot log for a future date.' });
   }
-  if (logDate < cutoff) {
+  if (logDate < sevenDaysAgo) {
     throw new BadRequestException({
       code: 'RETRO_LIMIT_EXCEEDED',
-      message: `Cannot log more than ${maxDaysBack} days in the past.`,
+      message: 'Cannot log more than 7 days in the past.',
     });
   }
 }
@@ -414,9 +413,6 @@ export class HabitsService {
     logDate: string,
     note: string | null,
     timezone: string,
-    // explicitDate=true when the caller supplied a specific date (tracker grid);
-    // false when the controller defaulted to today (dashboard quick-log).
-    explicitDate = false,
   ): Promise<{ log: HabitLog; isNew: boolean; currentStreak: number; longestStreak: number }> {
     const habit = await this.habitRepo.findOne(userId, habitId);
     if (!habit) throw new NotFoundException();
@@ -424,7 +420,7 @@ export class HabitsService {
       throw new ConflictException({ code: 'HABIT_ARCHIVED', message: 'Cannot log an archived habit.' });
     }
 
-    validateLogDate(logDate, timezone, explicitDate ? 365 : 7);
+    validateLogDate(logDate, timezone);
 
     interface RawLogRow {
       id: string;
@@ -514,8 +510,7 @@ export class HabitsService {
     const habit = await this.habitRepo.findOne(userId, habitId);
     if (!habit) throw new NotFoundException();
 
-    // DELETE always comes with an explicit date from the URL param — allow 365 days back.
-    validateLogDate(logDate, timezone, 365);
+    validateLogDate(logDate, timezone);
 
     const existing = await this.habitLogRepo.findByDate(userId, habitId, logDate);
     if (!existing) throw new NotFoundException();

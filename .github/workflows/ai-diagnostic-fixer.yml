@@ -62,7 +62,9 @@ jobs:
         run: |
           mkdir -p .ai-fixer/logs
           gh api "/repos/${REPO}/actions/runs/${RUN_ID}/logs" > .ai-fixer/logs/run.zip
-          unzip -o -q .ai-fixer/logs/run.zip -d .ai-fixer/logs/extracted
+          # Use Python's zipfile instead of unzip — macOS unzip chokes on
+          # Unicode filenames (e.g. the · chars in "lint · typecheck · test").
+          python3 .github/scripts/unzip-logs.py .ai-fixer/logs/run.zip .ai-fixer/logs/extracted
           # Concatenate, then keep only the trailing portion most likely to
           # contain the actual error (compiler/test output is usually last).
           find .ai-fixer/logs/extracted -name '*.txt' -print0 \

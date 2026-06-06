@@ -1,0 +1,144 @@
+name: ai-diagnostic-fixer
+
+# Wakes up after the `ci` workflow finishes on `main`. If it failed, an LLM
+# reads the failure logs, drafts a candidate fix, and opens it as a DRAFT PR
+# for human review. Nothing here ever pushes to `main` or auto-merges —
+# see the "Loop & safety notes" at the bottom of this file.
+on:
+  workflow_run:
+    workflows: ["ci"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+jobs:
+  diagnose-and-draft:
+    if: >
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      !startsWith(github.event.workflow_run.head_branch, 'ai-patch/')
+    # Self-hosted: this is the machine running `ollama serve`, reachable at
+    # localhost — no tunnel, no public exposure. Restrict this runner's
+    # registration to THIS workflow only (it never handles `pull_request`
+    # events, so fork-PR code never executes on it).
+    runs-on: [self-hosted, ollama-host]
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout failed commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Skip if a draft already exists for this run
+        id: existing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          BRANCH="ai-patch/failed-run-${RUN_ID}"
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download failure logs
+        if: steps.existing.outputs.exists == 'false'
+        id: logs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          REPO: ${{ github.repository }}
+        run: |
+          mkdir -p .ai-fixer/logs
+          gh api "/repos/${REPO}/actions/runs/${RUN_ID}/logs" > .ai-fixer/logs/run.zip
+          unzip -o -q .ai-fixer/logs/run.zip -d .ai-fixer/logs/extracted
+          # Concatenate, then keep only the trailing portion most likely to
+          # contain the actual error (compiler/test output is usually last).
+          find .ai-fixer/logs/extracted -name '*.txt' -print0 \
+            | xargs -0 cat > .ai-fixer/logs/full.log
+          tail -n 400 .ai-fixer/logs/full.log > .ai-fixer/logs/trailing.log
+          echo "log_path=.ai-fixer/logs/trailing.log" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        if: steps.existing.outputs.exists == 'false'
+        run: npm install --no-save @octokit/rest
+
+      # --- Networking: this job runs ON the Ollama host (self-hosted) ---------
+      # `OLLAMA_BASE_URL` = http://localhost:11434 — same machine, no tunnel,
+      # nothing exposed to the public internet. `OLLAMA_MODEL` must match a
+      # tag you've already pulled (`ollama list` to confirm) on this host.
+      # -------------------------------------------------------------------------
+      - name: Generate diagnosis and patch
+        if: steps.existing.outputs.exists == 'false'
+        id: patch
+        env:
+          OLLAMA_BASE_URL: ${{ secrets.OLLAMA_BASE_URL }}
+          OLLAMA_MODEL: ${{ secrets.OLLAMA_MODEL }}
+          LOG_PATH: ${{ steps.logs.outputs.log_path }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: node .github/scripts/ai-diagnose-and-patch.mjs
+
+      - name: Open draft PR
+        if: steps.existing.outputs.exists == 'false' && steps.patch.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          BRANCH_NAME: ai-patch/failed-run-${{ github.event.workflow_run.id }}
+        run: |
+          git config user.name "ai-diagnostic-fixer[bot]"
+          git config user.email "ai-diagnostic-fixer[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH_NAME"
+          {
+            echo "fix: AI-drafted patch for failed CI run #${RUN_ID}"
+            echo ""
+            echo "This is an autonomously generated candidate fix. It has not been"
+            echo "reviewed by a human and must not be merged without review."
+            echo ""
+            echo "Co-Authored-By: ai-diagnostic-fixer[bot] <ai-diagnostic-fixer[bot]@users.noreply.github.com>"
+          } > .ai-fixer/commit-message.txt
+          git add -A -- ':!.ai-fixer'
+          git commit -F .ai-fixer/commit-message.txt
+          git push origin "$BRANCH_NAME"
+
+          gh pr create \
+            --base main \
+            --head "$BRANCH_NAME" \
+            --draft \
+            --title "[AI-DRAFT] $(cat .ai-fixer/pr-title.txt)" \
+            --body-file .ai-fixer/pr-body.md
+
+      - name: Clean up working files
+        if: always()
+        run: rm -rf .ai-fixer
+
+# ---------------------------------------------------------------------------
+# Loop & safety notes
+#
+# 1. No loop risk: this workflow only ever opens DRAFT PRs against `main`. It
+#    never pushes to `main` and never auto-merges, so a bad AI patch cannot
+#    re-trigger `ci` on `main` and cannot re-trigger this workflow on itself.
+#    The `ci` workflow's own `pull_request` trigger *will* run against the
+#    `ai-patch/*` branch — that's expected and desirable (it tells the human
+#    reviewer whether the proposed fix actually passes CI).
+# 2. The `head_branch == 'main'` guard plus the `ai-patch/` exclusion ensures
+#    this job only fires for genuine failures on `main`, not for failures on
+#    the AI's own patch branches.
+# 3. The "skip if a draft already exists" step makes the job idempotent if
+#    `workflow_run` redelivers the event.
+# 4. `permissions` are scoped to exactly what's needed: read run metadata
+#    (`actions: read`), push a branch and open a PR (`contents: write`,
+#    `pull-requests: write`). No admin/merge permissions are granted.
+# ---------------------------------------------------------------------------

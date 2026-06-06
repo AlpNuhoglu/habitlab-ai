@@ -85,8 +85,8 @@ jobs:
         if: steps.existing.outputs.exists == 'false'
         id: patch
         env:
-          OLLAMA_BASE_URL: ${{ secrets.OLLAMA_BASE_URL }}
-          OLLAMA_MODEL: ${{ secrets.OLLAMA_MODEL }}
+          OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL }}
+          OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL }}
           LOG_PATH: ${{ steps.logs.outputs.log_path }}
           RUN_ID: ${{ github.event.workflow_run.id }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}

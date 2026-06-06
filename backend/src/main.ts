@@ -59,4 +59,3 @@ bootstrap().catch((err) => {
   process.exit(1);
 });
 
-const aiFixer2 = 'trigger-ai-fixer-round2';

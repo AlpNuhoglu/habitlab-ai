@@ -69,13 +69,14 @@ jobs:
           # contain the actual error (compiler/test output is usually last).
           find .ai-fixer/logs/extracted -name '*.txt' -print0 \
             | xargs -0 cat > .ai-fixer/logs/full.log
-          # Build a focused excerpt: error/failure lines with 5 lines of
-          # context, then fall back to the raw tail if grep finds nothing.
-          grep -n -E "(error|Error|FAIL|failed|✖|ERR_)" .ai-fixer/logs/full.log \
+          # Build a focused excerpt: error/failure lines with context.
+          # The ● pattern captures Jest/Vitest assertion failure blocks;
+          # FAIL captures the suite header; the rest catches compiler errors.
+          grep -n -E "(●|error|Error|FAIL|failed|✖|ERR_)" .ai-fixer/logs/full.log \
             | grep -v "health\|Health\|container\|Container\|redis\|postgres\|Postgres\|checksum\|Checksum\|waiting\|Waiting" \
-            | head -5 \
+            | head -10 \
             | awk -F: '{print $1}' \
-            | xargs -I{} awk "NR>={}-5 && NR<={}+15" .ai-fixer/logs/full.log \
+            | xargs -I{} awk "NR>={}-2 && NR<={}+25" .ai-fixer/logs/full.log \
             > .ai-fixer/logs/focused.log
           if [ -s .ai-fixer/logs/focused.log ]; then
             cp .ai-fixer/logs/focused.log .ai-fixer/logs/trailing.log

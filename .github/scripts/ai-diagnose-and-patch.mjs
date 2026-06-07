@@ -87,7 +87,11 @@ async function callOllama(messages, schema) {
 if (!process.env.OLLAMA_BASE_URL) failClean('OLLAMA_BASE_URL is not configured');
 
 const rawLog = readFileSync(logPath, 'utf8');
-const log    = truncate(rawLog, MAX_LOG_CHARS);
+// Strip GitHub Actions timestamp prefix from every line before any processing.
+// Raw lines look like: "2026-06-07T12:28:51.1234567Z  ❯ src/..."
+// Keeping them confuses both the model and the regex-based failure detection.
+const cleanLog = rawLog.replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z\s?/gm, '');
+const log      = truncate(cleanLog, MAX_LOG_CHARS);
 
 // ---------------------------------------------------------------------------
 // Phase 1: compiler / lint diagnosis
@@ -152,17 +156,23 @@ try {
 
 console.log(`phase1: confident=${diagnosis.confident} file=${diagnosis.file} lines=${JSON.stringify(diagnosis.lines_to_delete)}`);
 
-// Phase 1 guard: if the model said confident=true but the file is not a real
-// repo file (hallucinated absolute path, empty string, system binary, etc.),
-// treat it as not confident so Phase 1b gets a chance to run.
+// Phase 1 guard: normalise absolute CI paths to repo-relative, then verify
+// the file actually exists. Demote to not-confident if it doesn't so Phase 1b
+// gets a chance to run.
 if (diagnosis.confident) {
-  const f = diagnosis.file ?? '';
+  let f = diagnosis.file ?? '';
+  // The model sometimes returns the full runner path
+  // e.g. /home/runner/work/habitlab-ai/habitlab-ai/frontend/src/lib/foo.ts
+  // Strip everything up to and including the second copy of the repo name.
+  const runnerPrefixRe = /^\/home\/runner\/work\/[^/]+\/[^/]+\//;
+  if (runnerPrefixRe.test(f)) {
+    f = f.replace(runnerPrefixRe, '');
+    console.log(`Phase 1: normalised runner path → ${f}`);
+    diagnosis.file = f;
+  }
   const looksReal =
     f !== '' &&
-    !f.startsWith('/usr') &&
-    !f.startsWith('/bin') &&
-    !f.startsWith('/etc') &&
-    !f.startsWith('/home/runner/') &&
+    !f.startsWith('/') &&   // reject any remaining absolute path
     existsSync(f);
   if (!looksReal) {
     console.log(`Phase 1 claimed confident but file "${f}" does not exist in workspace — demoting to not-confident`);
@@ -176,34 +186,45 @@ if (diagnosis.confident) {
 // failure block that points at a test file we can find in the workspace.
 // ---------------------------------------------------------------------------
 
+// Strip GitHub Actions timestamp prefixes from every line so that regex
+// anchors work correctly. CI logs look like:
+//   2026-06-07T12:28:51.1234567Z  ❯ src/lib/streak-bonus.test.ts:11:38
+//   2026-06-07T12:28:51.1234567Z  ● streakBonusMultiplier › ...
+// The timestamp+Z prefix must be removed before any pattern matching.
+function stripTimestamps(logText) {
+  return logText.replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z\s?/gm, '');
+}
+
 // Detect a Jest/Vitest failure block and extract the test file path.
 // Supports both Jest   ("at Object.<anonymous> (path/file.test.ts:line:col)")
 // and Vitest           ("❯ path/file.test.ts:line:col")
 // and the FAIL header  ("FAIL src/...")
 function extractTestFailureContext(logText) {
+  const clean = stripTimestamps(logText);
+
   const hasFailureBlock =
-    /^\s*●\s+/m.test(logText) ||
-    /^FAIL\s+/m.test(logText) ||
-    /❯\s+\S+\.(test|spec)\.(ts|tsx|js|jsx):\d+/m.test(logText);
+    /^\s*●\s+/m.test(clean) ||
+    /^FAIL\s+/m.test(clean) ||
+    /❯\s+\S+\.(test|spec)\.(ts|tsx|js|jsx):\d+/m.test(clean);
 
   if (!hasFailureBlock) return null;
 
   // Vitest stack frame: "❯ src/lib/streak-bonus.test.ts:11:38"
   const vitestRe = /❯\s+([\w./\-]+\.(test|spec)\.(ts|tsx|js|jsx)):\d+/g;
   let match;
-  while ((match = vitestRe.exec(logText)) !== null) {
+  while ((match = vitestRe.exec(clean)) !== null) {
     if (existsSync(match[1])) return match[1];
   }
 
   // Jest stack frame: "at Object.<anonymous> (src/...test.ts:42:5)"
   const jestRe = /at Object\.<anonymous> \(([^)]+\.(test|spec)\.(ts|tsx|js|jsx)):\d+:\d+\)/g;
-  while ((match = jestRe.exec(logText)) !== null) {
+  while ((match = jestRe.exec(clean)) !== null) {
     if (existsSync(match[1])) return match[1];
   }
 
   // Fallback: FAIL header line — "FAIL src/lib/streak-bonus.test.ts"
   const failRe = /^FAIL\s+([\w./\-]+\.(test|spec)\.(ts|tsx|js|jsx))/m;
-  const failMatch = failRe.exec(logText);
+  const failMatch = failRe.exec(clean);
   if (failMatch && existsSync(failMatch[1])) return failMatch[1];
 
   return null;
@@ -288,7 +309,7 @@ let testDiagnosis = null;
 if (!diagnosis.confident) {
   console.log('Phase 1 not confident — checking for test failures (Phase 1b)...');
 
-  const testFilePath = extractTestFailureContext(rawLog);
+  const testFilePath = extractTestFailureContext(cleanLog);
   if (!testFilePath) {
     failClean('Phase 1 not confident and no recognisable test failure block found in log');
   }
@@ -304,7 +325,7 @@ if (!diagnosis.confident) {
 
   const testContent   = truncate(readFileSync(testFilePath, 'utf8'),   MAX_SOURCE_CHARS);
   const sourceContent = truncate(readFileSync(sourceFilePath, 'utf8'), MAX_SOURCE_CHARS);
-  const failureBlocks = extractFailureBlocks(rawLog) || truncate(rawLog, 3_000);
+  const failureBlocks = extractFailureBlocks(cleanLog) || truncate(cleanLog, 3_000);
 
   const phase1bSystem = `You are a senior engineer fixing a failing test in a TypeScript monorepo
 (NestJS backend, React/Vite frontend).

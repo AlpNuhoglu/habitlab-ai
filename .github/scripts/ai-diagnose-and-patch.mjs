@@ -309,7 +309,24 @@ let testDiagnosis = null;
 if (!diagnosis.confident) {
   console.log('Phase 1 not confident — checking for test failures (Phase 1b)...');
 
-  const testFilePath = extractTestFailureContext(cleanLog);
+  // Debug: show the first 500 chars of the cleaned log so we can see what
+  // patterns are (or aren't) present when Phase 1b triggers.
+  console.log('--- cleaned log sample (first 500 chars) ---');
+  console.log(cleanLog.slice(0, 500));
+  console.log('--- end sample ---');
+
+  // If Phase 1 already identified a test file path (confident=false but file
+  // is set and exists), use it directly rather than requiring a ● block in
+  // the log. The model correctly parsed the failure; we just need to proceed.
+  let testFilePath = null;
+  const phase1File = diagnosis.file ?? '';
+  if (phase1File && existsSync(phase1File) && /\.(test|spec)\.(ts|tsx|js|jsx)$/.test(phase1File)) {
+    console.log(`Phase 1b: using test file from Phase 1 diagnosis → ${phase1File}`);
+    testFilePath = phase1File;
+  } else {
+    testFilePath = extractTestFailureContext(cleanLog);
+  }
+
   if (!testFilePath) {
     failClean('Phase 1 not confident and no recognisable test failure block found in log');
   }

@@ -65,23 +65,37 @@ jobs:
           # Use Python's zipfile instead of unzip — macOS unzip chokes on
           # Unicode filenames (e.g. the · chars in "lint · typecheck · test").
           python3 .github/scripts/unzip-logs.py .ai-fixer/logs/run.zip .ai-fixer/logs/extracted
-          # Concatenate, then keep only the trailing portion most likely to
-          # contain the actual error (compiler/test output is usually last).
-          find .ai-fixer/logs/extracted -name '*.txt' -print0 \
-            | xargs -0 cat > .ai-fixer/logs/full.log
-          # Build a focused excerpt: error/failure lines with context.
-          # The ● pattern captures Jest/Vitest assertion failure blocks;
-          # FAIL captures the suite header; the rest catches compiler errors.
-          grep -n -E "(●|error|Error|FAIL|failed|✖|ERR_)" .ai-fixer/logs/full.log \
-            | grep -v "health\|Health\|container\|Container\|redis\|postgres\|Postgres\|checksum\|Checksum\|waiting\|Waiting" \
-            | head -10 \
-            | awk -F: '{print $1}' \
-            | xargs -I{} awk "NR>={}-2 && NR<={}+25" .ai-fixer/logs/full.log \
-            > .ai-fixer/logs/focused.log
-          if [ -s .ai-fixer/logs/focused.log ]; then
-            cp .ai-fixer/logs/focused.log .ai-fixer/logs/trailing.log
+
+          # Concatenate step logs in numeric order (step 2 before step 10) so
+          # the tail of the combined log is the last step that ran — which is
+          # where test/compiler failures always appear.
+          find .ai-fixer/logs/extracted -name '*.txt' \
+            | sort -t/ -k1,1V -k2,2V \
+            | xargs cat > .ai-fixer/logs/full.log
+
+          # Strategy A — prefer the step log that contains a Vitest/Jest "●"
+          # or "FAIL" failure block. Step logs are small and self-contained;
+          # reading the right one directly avoids the needle-in-haystack problem
+          # of grep-with-context across a multi-step concatenated log.
+          VITEST_LOG=$(grep -rl -E "(● |FAIL )" .ai-fixer/logs/extracted/ 2>/dev/null | sort -V | tail -1)
+          if [ -n "$VITEST_LOG" ]; then
+            echo "Using step log with test failures: $VITEST_LOG"
+            cp "$VITEST_LOG" .ai-fixer/logs/trailing.log
           else
-            tail -n 400 .ai-fixer/logs/full.log > .ai-fixer/logs/trailing.log
+            # Strategy B — compiler/lint failure: grep for explicit file:line
+            # error references and include surrounding context.
+            grep -n -E "(error TS[0-9]+|ESLint|ERR_|✖)" .ai-fixer/logs/full.log \
+              | grep -v "health\|Health\|container\|Container\|redis\|postgres\|Postgres\|checksum\|Checksum\|waiting\|Waiting" \
+              | head -10 \
+              | awk -F: '{print $1}' \
+              | xargs -I{} awk "NR>={}-2 && NR<={}+25" .ai-fixer/logs/full.log \
+              > .ai-fixer/logs/focused.log
+            if [ -s .ai-fixer/logs/focused.log ]; then
+              cp .ai-fixer/logs/focused.log .ai-fixer/logs/trailing.log
+            else
+              # Final fallback: raw tail of the full log.
+              tail -n 400 .ai-fixer/logs/full.log > .ai-fixer/logs/trailing.log
+            fi
           fi
           echo "log_path=.ai-fixer/logs/trailing.log" >> "$GITHUB_OUTPUT"
 

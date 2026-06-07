@@ -152,31 +152,56 @@ try {
 
 console.log(`phase1: confident=${diagnosis.confident} file=${diagnosis.file} lines=${JSON.stringify(diagnosis.lines_to_delete)}`);
 
+// Phase 1 guard: if the model said confident=true but the file is not a real
+// repo file (hallucinated absolute path, empty string, system binary, etc.),
+// treat it as not confident so Phase 1b gets a chance to run.
+if (diagnosis.confident) {
+  const f = diagnosis.file ?? '';
+  const looksReal =
+    f !== '' &&
+    !f.startsWith('/usr') &&
+    !f.startsWith('/bin') &&
+    !f.startsWith('/etc') &&
+    !f.startsWith('/home/runner/') &&
+    existsSync(f);
+  if (!looksReal) {
+    console.log(`Phase 1 claimed confident but file "${f}" does not exist in workspace — demoting to not-confident`);
+    diagnosis.confident = false;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Phase 1b: test-failure diagnosis
 // Activated when Phase 1 is not confident AND the log contains a Jest/Vitest
-// "●" failure block that points at a test file we can find in the workspace.
+// failure block that points at a test file we can find in the workspace.
 // ---------------------------------------------------------------------------
 
-// Detect a Jest/Vitest failure block: lines starting with "● " or "FAIL ".
-// Extract the first test-file path mentioned in an "at Object.<anonymous>"
-// stack frame — that's always a repo-relative path Jest/Vitest embeds.
+// Detect a Jest/Vitest failure block and extract the test file path.
+// Supports both Jest   ("at Object.<anonymous> (path/file.test.ts:line:col)")
+// and Vitest           ("❯ path/file.test.ts:line:col")
+// and the FAIL header  ("FAIL src/...")
 function extractTestFailureContext(logText) {
-  // Match "● SuiteName › test name" blocks
-  if (!/^\s*●\s+/m.test(logText) && !/^FAIL\s+/m.test(logText)) return null;
+  const hasFailureBlock =
+    /^\s*●\s+/m.test(logText) ||
+    /^FAIL\s+/m.test(logText) ||
+    /❯\s+\S+\.(test|spec)\.(ts|tsx|js|jsx):\d+/m.test(logText);
 
-  // Extract the test file path from the first stack frame in a test file.
-  // Jest/Vitest prints:   at Object.<anonymous> (frontend/src/...test.ts:42:5)
-  // or:                   at Object.<anonymous> (src/...spec.ts:12:3)
-  const atRe = /at Object\.<anonymous> \(([^)]+\.(test|spec)\.(ts|tsx|js|jsx)):(\d+):\d+\)/g;
+  if (!hasFailureBlock) return null;
+
+  // Vitest stack frame: "❯ src/lib/streak-bonus.test.ts:11:38"
+  const vitestRe = /❯\s+([\w./\-]+\.(test|spec)\.(ts|tsx|js|jsx)):\d+/g;
   let match;
-  while ((match = atRe.exec(logText)) !== null) {
-    const candidatePath = match[1];
-    // Resolve relative to repo root (cwd is checked out repo in CI).
-    if (existsSync(candidatePath)) return candidatePath;
+  while ((match = vitestRe.exec(logText)) !== null) {
+    if (existsSync(match[1])) return match[1];
   }
 
-  // Fallback: FAIL line — "FAIL frontend/src/..."
+  // Jest stack frame: "at Object.<anonymous> (src/...test.ts:42:5)"
+  const jestRe = /at Object\.<anonymous> \(([^)]+\.(test|spec)\.(ts|tsx|js|jsx)):\d+:\d+\)/g;
+  while ((match = jestRe.exec(logText)) !== null) {
+    if (existsSync(match[1])) return match[1];
+  }
+
+  // Fallback: FAIL header line — "FAIL src/lib/streak-bonus.test.ts"
   const failRe = /^FAIL\s+([\w./\-]+\.(test|spec)\.(ts|tsx|js|jsx))/m;
   const failMatch = failRe.exec(logText);
   if (failMatch && existsSync(failMatch[1])) return failMatch[1];

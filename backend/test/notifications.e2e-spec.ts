@@ -80,6 +80,20 @@ function currentUTCHHMM(): string {
   return `${h}:${m}`;
 }
 
+// Returns the numeric minute-of-day for a given HH:MM string.
+// Used to freeze the scheduler's clock so CI timing jitter can't race past
+// the ±1 min window between test setup and tick().
+function hhmToMinutes(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number);
+  return (h ?? 0) * 60 + (m ?? 0);
+}
+
+function freezeSchedulerAt(sched: NotificationSchedulerService, hhmm: string): void {
+  const minutes = hhmToMinutes(hhmm);
+  // getNowMinutes is protected but accessible via index signature in tests.
+  (sched as unknown as { getNowMinutes: (tz: string) => number }).getNowMinutes = () => minutes;
+}
+
 function fakeEndpoint(suffix: string): string {
   return `https://push.example.test/${RUN}/${suffix}`;
 }
@@ -245,6 +259,7 @@ describe('Web push notifications (e2e)', () => {
         [userId, endpoint],
       );
 
+      freezeSchedulerAt(scheduler, preferredTime);
       await scheduler.tick();
 
       const sent = await ds.query<Array<{ template_key: string; variant_key: string | null }>>(
@@ -361,6 +376,7 @@ describe('Web push notifications (e2e)', () => {
         [userId, fakeEndpoint('sched4')],
       );
 
+      freezeSchedulerAt(scheduler, preferredTime);
       await scheduler.tick();
       await scheduler.tick();
 
@@ -397,6 +413,7 @@ describe('Web push notifications (e2e)', () => {
       // Make WebPushService.send() return 'gone' for this test
       const spy = jest.spyOn(webPush, 'send').mockResolvedValue('gone');
 
+      freezeSchedulerAt(scheduler, preferredTime);
       await scheduler.tick();
 
       // Subscription should be deleted (410 Gone cleanup)
@@ -452,6 +469,7 @@ describe('Web push notifications (e2e)', () => {
         [userId, endpoint],
       );
 
+      freezeSchedulerAt(scheduler, preferredTime);
       await scheduler.tick();
 
       const sent = await ds.query<

@@ -109,6 +109,9 @@ export class NotificationSchedulerService implements OnModuleInit, OnModuleDestr
     }
   }
 
+  // Overrideable in tests to freeze wall-clock time without mocking Date globally.
+  protected getNowMinutes: (timezone: string) => number = getCurrentMinutesInTimezone;
+
   async tick(): Promise<void> {
     if (this.running) return;
     this.running = true;
@@ -151,7 +154,7 @@ export class NotificationSchedulerService implements OnModuleInit, OnModuleDestr
   }
 
   private async processHabit(row: HabitRow): Promise<void> {
-    const now = getCurrentMinutesInTimezone(row.timezone);
+    const now = this.getNowMinutes(row.timezone);
     const preferred = parseTimeToMinutes(row.preferred_time);
 
     // 1. Time window check (±1 minute)

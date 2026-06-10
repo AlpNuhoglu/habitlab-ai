@@ -28,6 +28,7 @@ const OUT_DIR            = '.ai-fixer';
 const MODEL    = process.env.OLLAMA_MODEL    || 'llama3';
 const BASE_URL = (process.env.OLLAMA_BASE_URL || 'http://localhost:11434').replace(/\/+$/, '');
 const REQUEST_TIMEOUT_MS = 120_000;
+const WORKSPACE_ROOTS    = ['', 'frontend/', 'backend/', 'shared/'];
 
 const logPath = process.env.LOG_PATH;
 const runUrl  = process.env.RUN_URL;
@@ -170,9 +171,23 @@ if (diagnosis.confident) {
     console.log(`Phase 1: normalised runner path → ${f}`);
     diagnosis.file = f;
   }
+  // Model often strips the monorepo root prefix (frontend/ backend/).
+  // Search known workspace roots before giving up.
+  if (f !== '' && !f.startsWith('/') && !existsSync(f)) {
+    for (const root of WORKSPACE_ROOTS) {
+      if (root === '') continue;
+      const candidate = root + f;
+      if (existsSync(candidate)) {
+        console.log(`Phase 1: resolved ${f} → ${candidate}`);
+        f = candidate;
+        diagnosis.file = f;
+        break;
+      }
+    }
+  }
   const looksReal =
     f !== '' &&
-    !f.startsWith('/') &&   // reject any remaining absolute path
+    !f.startsWith('/') &&
     existsSync(f);
   if (!looksReal) {
     console.log(`Phase 1 claimed confident but file "${f}" does not exist in workspace — demoting to not-confident`);
@@ -319,7 +334,6 @@ if (!diagnosis.confident) {
   // is set), use it directly. The model strips the workspace root prefix so
   // "src/lib/foo.test.ts" may actually live at "frontend/src/lib/foo.test.ts".
   // Search under known monorepo roots before falling back to log parsing.
-  const WORKSPACE_ROOTS = ['', 'frontend/', 'backend/', 'shared/'];
   let testFilePath = null;
   const phase1File = diagnosis.file ?? '';
   if (phase1File && /\.(test|spec)\.(ts|tsx|js|jsx)$/.test(phase1File)) {

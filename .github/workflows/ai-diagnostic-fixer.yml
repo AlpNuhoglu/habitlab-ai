@@ -72,10 +72,11 @@ jobs:
             | sort -zV \
             | xargs -0 cat > .ai-fixer/logs/full.log
 
-          # Strategy A — find the step log that contains a Vitest/Jest "●" or
-          # "FAIL " failure block and use it directly. Step logs are isolated;
-          # this avoids grep-context noise from unrelated setup steps.
-          VITEST_LOG=$(grep -rl -E "(● |FAIL )" .ai-fixer/logs/extracted/ 2>/dev/null \
+          # Strategy A — find the step log that contains a Vitest/Jest "●"
+          # failure block. We match "● " (bullet + space) which is unique to
+          # Vitest/Jest output and does NOT appear in ERR_PNPM_... wrapper lines.
+          # "FAIL " alone is too broad — pnpm error lines also contain it.
+          VITEST_LOG=$(grep -rl "● " .ai-fixer/logs/extracted/ 2>/dev/null \
             | sort -V | tail -1)
           if [ -n "$VITEST_LOG" ]; then
             echo "Using step log with test failures: $VITEST_LOG"

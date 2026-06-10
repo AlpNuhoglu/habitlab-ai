@@ -20,7 +20,7 @@
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { execSync } from 'node:child_process';
-import { resolve, dirname, join } from 'node:path';
+import { resolve, dirname } from 'node:path';
 
 const MAX_LOG_CHARS      = 8_000;
 const MAX_SOURCE_CHARS   = 6_000; // per file sent to model in Phase 1b
@@ -316,14 +316,23 @@ if (!diagnosis.confident) {
   console.log('--- end sample ---');
 
   // If Phase 1 already identified a test file path (confident=false but file
-  // is set and exists), use it directly rather than requiring a ● block in
-  // the log. The model correctly parsed the failure; we just need to proceed.
+  // is set), use it directly. The model strips the workspace root prefix so
+  // "src/lib/foo.test.ts" may actually live at "frontend/src/lib/foo.test.ts".
+  // Search under known monorepo roots before falling back to log parsing.
+  const WORKSPACE_ROOTS = ['', 'frontend/', 'backend/', 'shared/'];
   let testFilePath = null;
   const phase1File = diagnosis.file ?? '';
-  if (phase1File && existsSync(phase1File) && /\.(test|spec)\.(ts|tsx|js|jsx)$/.test(phase1File)) {
-    console.log(`Phase 1b: using test file from Phase 1 diagnosis → ${phase1File}`);
-    testFilePath = phase1File;
-  } else {
+  if (phase1File && /\.(test|spec)\.(ts|tsx|js|jsx)$/.test(phase1File)) {
+    for (const root of WORKSPACE_ROOTS) {
+      const candidate = root + phase1File;
+      if (existsSync(candidate)) {
+        console.log(`Phase 1b: resolved test file → ${candidate}`);
+        testFilePath = candidate;
+        break;
+      }
+    }
+  }
+  if (!testFilePath) {
     testFilePath = extractTestFailureContext(cleanLog);
   }
 
@@ -426,11 +435,25 @@ ${sourceContent}
     failClean('Phase 1b: model did not identify lines to edit');
   }
 
+  // Resolve workspace-root prefix on the source file the model returned.
+  // The model strips the monorepo root (frontend/ backend/) so we search.
+  let resolvedSourceFile = testDiagnosis.file;
+  if (!existsSync(resolvedSourceFile)) {
+    for (const root of WORKSPACE_ROOTS) {
+      const candidate = root + testDiagnosis.file;
+      if (existsSync(candidate)) {
+        console.log(`Phase 1b: resolved source file ${testDiagnosis.file} → ${candidate}`);
+        resolvedSourceFile = candidate;
+        break;
+      }
+    }
+  }
+
   // Promote testDiagnosis fields into the shared diagnosis shape so Phase 2
   // can operate uniformly regardless of which phase produced the diagnosis.
   diagnosis = {
     confident:       true,
-    file:            testDiagnosis.file,
+    file:            resolvedSourceFile,
     lines_to_delete: testDiagnosis.lines_to_delete,
     edit_type:       testDiagnosis.edit_type,
     replacement_lines: testDiagnosis.replacement_lines ?? [],

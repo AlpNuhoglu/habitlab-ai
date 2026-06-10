@@ -62,30 +62,37 @@ jobs:
         run: |
           mkdir -p .ai-fixer/logs
           gh api "/repos/${REPO}/actions/runs/${RUN_ID}/logs" > .ai-fixer/logs/run.zip
-          # Use Python's zipfile instead of unzip — macOS unzip chokes on
-          # Unicode filenames (e.g. the · chars in "lint · typecheck · test").
-          python3 .github/scripts/unzip-logs.py .ai-fixer/logs/run.zip .ai-fixer/logs/extracted
 
-          # Concatenate step logs in numeric order using null delimiters throughout
-          # so filenames with spaces and · characters are handled correctly.
-          find .ai-fixer/logs/extracted -name '*.txt' -print0 \
-            | sort -zV \
-            | xargs -0 cat > .ai-fixer/logs/full.log
+          # Extract all step logs. The unzip script handles Unicode filenames
+          # (· in job names) that shell tools choke on.
+          python3 .github/scripts/unzip-logs.py \
+            .ai-fixer/logs/run.zip .ai-fixer/logs/extracted
 
-          # Strategy A — collect ALL step logs that contain a Vitest/Jest "● "
-          # failure marker and concatenate them. "● " (bullet + space) is unique
-          # to Vitest/Jest assertion output; it does not appear in pnpm error
-          # wrappers or post-cleanup steps. Using -l + xargs cat avoids the
-          # sort-order ambiguity of picking a single "best" file.
-          grep -rl "● " .ai-fixer/logs/extracted/ 2>/dev/null \
-            | sort -V \
-            | xargs cat > .ai-fixer/logs/vitest.log 2>/dev/null || true
-          if [ -s .ai-fixer/logs/vitest.log ]; then
-            echo "Strategy A: found Vitest failure blocks"
-            cp .ai-fixer/logs/vitest.log .ai-fixer/logs/trailing.log
+          # Strategy A — ask the unzip script to find the "Frontend tests" step
+          # log by name. This is deterministic and immune to sort-order issues.
+          # Falls through to Strategy B if the step is not found (e.g. the
+          # failure was in a different step like Lint or Typecheck).
+          FRONTEND_LOG=$(python3 .github/scripts/unzip-logs.py \
+            .ai-fixer/logs/run.zip .ai-fixer/logs/extracted "frontend tests")
+          UNIT_LOG=$(python3 .github/scripts/unzip-logs.py \
+            .ai-fixer/logs/run.zip .ai-fixer/logs/extracted "unit tests")
+          E2E_LOG=$(python3 .github/scripts/unzip-logs.py \
+            .ai-fixer/logs/run.zip .ai-fixer/logs/extracted "e2e tests")
+
+          # Combine whichever test step logs were found into one file.
+          > .ai-fixer/logs/test-steps.log
+          for f in "$FRONTEND_LOG" "$UNIT_LOG" "$E2E_LOG"; do
+            [ -n "$f" ] && [ -f "$f" ] && cat "$f" >> .ai-fixer/logs/test-steps.log
+          done
+
+          if [ -s .ai-fixer/logs/test-steps.log ]; then
+            echo "Strategy A: using test step logs directly"
+            cp .ai-fixer/logs/test-steps.log .ai-fixer/logs/trailing.log
           else
-            # Strategy B — compiler/lint failure: grep for TypeScript error codes
-            # and ESLint markers only (avoids false positives from setup steps).
+            # Strategy B — not a test failure: look for compiler/lint errors.
+            # Concatenate all step logs first for grep-based search.
+            find .ai-fixer/logs/extracted -name '*.txt' -print0 \
+              | sort -zV | xargs -0 cat > .ai-fixer/logs/full.log
             grep -n -E "(error TS[0-9]+|ESLint|✖)" .ai-fixer/logs/full.log \
               | grep -v "health\|Health\|container\|Container\|redis\|postgres\|Postgres\|checksum\|Checksum\|waiting\|Waiting" \
               | head -10 \
@@ -97,6 +104,8 @@ jobs:
               cp .ai-fixer/logs/focused.log .ai-fixer/logs/trailing.log
             else
               echo "Fallback: using tail of full log"
+              find .ai-fixer/logs/extracted -name '*.txt' -print0 \
+                | sort -zV | xargs -0 cat > .ai-fixer/logs/full.log
               tail -n 400 .ai-fixer/logs/full.log > .ai-fixer/logs/trailing.log
             fi
           fi

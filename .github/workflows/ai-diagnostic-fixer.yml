@@ -72,27 +72,31 @@ jobs:
             | sort -zV \
             | xargs -0 cat > .ai-fixer/logs/full.log
 
-          # Strategy A — find the step log that contains a Vitest/Jest "●"
-          # failure block. We match "● " (bullet + space) which is unique to
-          # Vitest/Jest output and does NOT appear in ERR_PNPM_... wrapper lines.
-          # "FAIL " alone is too broad — pnpm error lines also contain it.
-          VITEST_LOG=$(grep -rl "● " .ai-fixer/logs/extracted/ 2>/dev/null \
-            | sort -V | tail -1)
-          if [ -n "$VITEST_LOG" ]; then
-            echo "Using step log with test failures: $VITEST_LOG"
-            cp "$VITEST_LOG" .ai-fixer/logs/trailing.log
+          # Strategy A — collect ALL step logs that contain a Vitest/Jest "● "
+          # failure marker and concatenate them. "● " (bullet + space) is unique
+          # to Vitest/Jest assertion output; it does not appear in pnpm error
+          # wrappers or post-cleanup steps. Using -l + xargs cat avoids the
+          # sort-order ambiguity of picking a single "best" file.
+          grep -rl "● " .ai-fixer/logs/extracted/ 2>/dev/null \
+            | sort -V \
+            | xargs cat > .ai-fixer/logs/vitest.log 2>/dev/null || true
+          if [ -s .ai-fixer/logs/vitest.log ]; then
+            echo "Strategy A: found Vitest failure blocks"
+            cp .ai-fixer/logs/vitest.log .ai-fixer/logs/trailing.log
           else
             # Strategy B — compiler/lint failure: grep for TypeScript error codes
             # and ESLint markers only (avoids false positives from setup steps).
-            grep -n -E "(error TS[0-9]+|ESLint|ERR_|✖)" .ai-fixer/logs/full.log \
+            grep -n -E "(error TS[0-9]+|ESLint|✖)" .ai-fixer/logs/full.log \
               | grep -v "health\|Health\|container\|Container\|redis\|postgres\|Postgres\|checksum\|Checksum\|waiting\|Waiting" \
               | head -10 \
               | awk -F: '{print $1}' \
               | xargs -I{} awk "NR>={}-2 && NR<={}+25" .ai-fixer/logs/full.log \
               > .ai-fixer/logs/focused.log
             if [ -s .ai-fixer/logs/focused.log ]; then
+              echo "Strategy B: found compiler/lint errors"
               cp .ai-fixer/logs/focused.log .ai-fixer/logs/trailing.log
             else
+              echo "Fallback: using tail of full log"
               tail -n 400 .ai-fixer/logs/full.log > .ai-fixer/logs/trailing.log
             fi
           fi

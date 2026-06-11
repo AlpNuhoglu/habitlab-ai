@@ -47,3 +47,4 @@ redis_data/
 coverage/
 coverage-e2e/
 *.lcov
+.aider*

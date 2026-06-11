@@ -66,29 +66,29 @@ export function LoginPage(): React.ReactElement {
     <AuthCard>
       <div className="mb-6">
         <VariantSlot id="auth.login.headline">
-          <h1 className="text-2xl font-bold text-gray-900">Welcome back</h1>
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">Welcome back</h1>
         </VariantSlot>
         <p className="mt-1 text-sm text-gray-500">Sign in to your HabitLab account.</p>
       </div>
 
       {isVerified && (
-        <div role="status" className="mb-4 rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
+        <div role="status" className="mb-4 rounded-lg border border-emerald-500/30 bg-emerald-900/20 px-4 py-3 text-sm text-emerald-400">
           Email verified — you can now sign in.
         </div>
       )}
       {isPasswordReset && (
-        <div role="status" className="mb-4 rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
+        <div role="status" className="mb-4 rounded-lg border border-emerald-500/30 bg-emerald-900/20 px-4 py-3 text-sm text-emerald-400">
           Password reset successfully. Please sign in.
         </div>
       )}
       {isExpired && (
-        <div role="status" className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-700">
+        <div role="status" className="mb-4 rounded-lg border border-amber-500/30 bg-amber-900/20 px-4 py-3 text-sm text-amber-400">
           Your session expired. Please sign in again.
         </div>
       )}
 
       {isForbidden ? (
-        <div role="alert" className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-700">
+        <div role="alert" className="mb-4 rounded-lg border border-amber-500/30 bg-amber-900/20 px-4 py-3 text-sm text-amber-400">
           <p className="font-medium">Email not verified</p>
           <p className="mt-1">Check your inbox for a verification link.</p>
           {resendVerification.isSuccess ? (
@@ -98,7 +98,7 @@ export function LoginPage(): React.ReactElement {
               type="button"
               disabled={resendVerification.isPending || !emailValue}
               onClick={() => resendVerification.mutate({ email: emailValue })}
-              className="mt-2 text-amber-700 underline text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+              className="mt-2 text-amber-400 underline text-xs disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {resendVerification.isPending ? 'Sending…' : 'Resend verification email'}
             </button>

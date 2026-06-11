@@ -43,14 +43,14 @@ export const TrackerCell = React.memo(function TrackerCell({
           currentStatus: day?.status ?? 'pending',
         })
       }
-      className={`h-8 w-8 rounded-md border text-xs font-medium transition-colors ${
+      className={`h-8 w-8 rounded-md border text-xs font-medium transition-all ${
         isFuture
-          ? 'cursor-not-allowed border-gray-100 bg-gray-50 opacity-40'
+          ? 'cursor-not-allowed border-gray-800 bg-gray-900/20 opacity-30'
           : isCompleted
-          ? 'border-emerald-400 bg-emerald-500 text-white hover:bg-emerald-600'
+          ? 'border-cyan-500 bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 hover:shadow-[0_0_8px_rgba(34,211,238,0.3)]'
           : isSkipped
-          ? 'border-orange-200 bg-orange-100 text-orange-700 hover:bg-orange-200'
-          : 'border-gray-200 bg-white text-gray-300 hover:border-indigo-300 hover:text-indigo-400'
+          ? 'border-orange-500/40 bg-orange-900/20 text-orange-400 hover:bg-orange-900/30'
+          : 'border-gray-700 bg-transparent text-gray-700 hover:border-purple-500/50 hover:text-purple-400'
       }`}
     >
       {isCompleted ? '✓' : isSkipped ? '–' : ''}

@@ -40,16 +40,16 @@ export function TrackerPage(): React.ReactElement {
               value={effectiveFrom}
               max={effectiveTo}
               onChange={(e) => setTrackerRange(e.target.value, effectiveTo)}
-              className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600"
+              className="rounded border border-gray-700 bg-gray-900/60 px-2 py-1 text-xs text-gray-300 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
             />
-            <span className="text-xs text-gray-400">to</span>
+            <span className="text-xs text-gray-600">to</span>
             <input
               type="date"
               value={effectiveTo}
               max={today}
               min={effectiveFrom}
               onChange={(e) => setTrackerRange(effectiveFrom, e.target.value)}
-              className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600"
+              className="rounded border border-gray-700 bg-gray-900/60 px-2 py-1 text-xs text-gray-300 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
             />
           </div>
         }
@@ -58,12 +58,12 @@ export function TrackerPage(): React.ReactElement {
       {isLoading ? (
         <div className="animate-pulse space-y-1 pt-6">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-9 rounded-lg bg-gray-100" />
+            <div key={i} className="h-9 rounded-lg bg-gray-800/60" />
           ))}
         </div>
       ) : rows.length === 0 ? (
-        <div className="rounded-xl border-2 border-dashed border-gray-200 py-16 text-center text-sm text-gray-400">
-          No active habits to track. <a href="/habits" className="text-indigo-500 underline">Create one</a>.
+        <div className="rounded-xl border-2 border-dashed border-purple-500/20 py-16 text-center text-sm text-gray-500">
+          No active habits to track. <a href="/habits" className="text-cyan-400 hover:text-cyan-300 underline">Create one</a>.
         </div>
       ) : (
         <div className="pt-4">

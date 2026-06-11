@@ -16,11 +16,11 @@ export function SubmitButton({
       aria-busy={isPending}
       className={[
         'w-full flex items-center justify-center gap-2 rounded-lg px-4 py-2.5',
-        'text-sm font-semibold text-white transition-colors duration-150',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-500 focus-visible:ring-offset-2',
+        'text-sm font-semibold transition-all duration-150',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-black',
         isPending
-          ? 'bg-navy-400 cursor-not-allowed'
-          : 'bg-navy-700 hover:bg-navy-600 active:bg-navy-800',
+          ? 'border border-purple-500/20 bg-purple-900/20 text-purple-400/50 cursor-not-allowed'
+          : 'border border-purple-500/50 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 hover:border-purple-400 hover:shadow-[0_0_15px_rgba(168,85,247,0.3)]',
       ].join(' ')}
     >
       {isPending && (

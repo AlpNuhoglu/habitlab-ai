@@ -27,23 +27,25 @@ export function AppLayout(): React.ReactElement {
   }, [userId]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-black">
       <MaintenanceBanner />
       <OfflineBanner />
-      <nav className="border-b border-gray-200 bg-white">
+      <nav className="border-b border-purple-500/20 bg-black/80 backdrop-blur-md sticky top-0 z-30">
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-6">
-            <span className="text-sm font-bold tracking-tight text-indigo-600">HabitLab</span>
+            <span className="text-sm font-bold tracking-widest uppercase bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
+              HabitLab
+            </span>
             <div className="hidden gap-1 sm:flex">
               {NAV_LINKS.map(({ to, label }) => (
                 <NavLink
                   key={to}
                   to={to}
                   className={({ isActive }) =>
-                    `rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                    `rounded-md px-3 py-1.5 text-xs font-medium tracking-wider uppercase transition-all ${
                       isActive
-                        ? 'bg-indigo-50 text-indigo-700'
-                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                        ? 'bg-purple-500/10 text-purple-400 shadow-[0_0_10px_rgba(168,85,247,0.3)]'
+                        : 'text-gray-400 hover:bg-gray-800/60 hover:text-cyan-400'
                     }`
                   }
                 >
@@ -55,7 +57,7 @@ export function AppLayout(): React.ReactElement {
 
           <div className="flex items-center gap-3">
             {user && (
-              <span className="hidden text-xs text-gray-400 sm:block">
+              <span className="hidden text-xs text-gray-500 sm:block font-mono">
                 {user.email}
               </span>
             )}
@@ -63,7 +65,7 @@ export function AppLayout(): React.ReactElement {
               type="button"
               onClick={() => logout.mutate()}
               disabled={logout.isPending}
-              className="rounded-md px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+              className="rounded-md px-3 py-1.5 text-xs font-medium tracking-wider uppercase text-gray-400 border border-gray-700 hover:border-red-500/50 hover:text-red-400 transition-colors disabled:opacity-50"
             >
               Sign out
             </button>
@@ -77,10 +79,10 @@ export function AppLayout(): React.ReactElement {
               key={to}
               to={to}
               className={({ isActive }) =>
-                `whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                `whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium tracking-wider uppercase transition-all ${
                   isActive
-                    ? 'bg-indigo-50 text-indigo-700'
-                    : 'text-gray-600 hover:bg-gray-100'
+                    ? 'bg-purple-500/10 text-purple-400'
+                    : 'text-gray-400 hover:bg-gray-800/60'
                 }`
               }
             >

@@ -9,21 +9,21 @@ export function ChartFrame({
   children,
 }: ChartFrameProps): React.ReactElement {
   return (
-    <div className="print:break-inside-avoid rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+    <div className="print:break-inside-avoid rounded-xl border border-purple-500/20 bg-gray-900/40 backdrop-blur-md p-4">
       <div className="mb-3">
-        <h3 className="text-sm font-semibold text-gray-700">{title}</h3>
+        <h3 className="text-xs font-semibold tracking-widest uppercase text-gray-400">{title}</h3>
         {description !== undefined && (
-          <p className="mt-0.5 text-xs text-gray-400">{description}</p>
+          <p className="mt-0.5 text-xs text-gray-600">{description}</p>
         )}
       </div>
 
       {isPending && (
-        <div className="h-40 animate-pulse rounded-lg bg-gray-100" />
+        <div className="h-40 animate-pulse rounded-lg bg-gray-800/60" />
       )}
 
       {!isPending && isError && (
         <div className="flex h-40 items-center justify-center">
-          <p className="text-xs text-gray-400">Could not load chart data.</p>
+          <p className="text-xs text-gray-600">Could not load chart data.</p>
         </div>
       )}
 

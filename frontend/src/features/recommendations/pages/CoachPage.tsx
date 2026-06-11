@@ -53,7 +53,7 @@ export function CoachPage(): React.ReactElement {
     <div className="space-y-6">
       {/* Page header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">
+        <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent tracking-wide">
           <VariantSlot id="coach.page.title">AI Coach</VariantSlot>
         </h1>
         <p className="mt-1 text-sm text-gray-500">
@@ -62,15 +62,15 @@ export function CoachPage(): React.ReactElement {
       </div>
 
       {/* Tab bar */}
-      <div className="border-b border-gray-200">
+      <div className="border-b border-gray-800">
         <nav className="-mb-px flex gap-6" aria-label="Coach tabs">
           <button
             type="button"
             onClick={() => setActiveTab('insights')}
-            className={`whitespace-nowrap border-b-2 pb-3 text-sm font-medium transition-colors ${
+            className={`whitespace-nowrap border-b-2 pb-3 text-sm font-medium tracking-wide transition-colors ${
               activeTab === 'insights'
-                ? 'border-indigo-600 text-indigo-600'
-                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                ? 'border-purple-500 text-purple-400'
+                : 'border-transparent text-gray-600 hover:border-gray-700 hover:text-gray-400'
             }`}
           >
             Insights
@@ -78,14 +78,14 @@ export function CoachPage(): React.ReactElement {
           <button
             type="button"
             onClick={() => setActiveTab('chat')}
-            className={`flex items-center gap-1.5 whitespace-nowrap border-b-2 pb-3 text-sm font-medium transition-colors ${
+            className={`flex items-center gap-1.5 whitespace-nowrap border-b-2 pb-3 text-sm font-medium tracking-wide transition-colors ${
               activeTab === 'chat'
-                ? 'border-indigo-600 text-indigo-600'
-                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                ? 'border-cyan-500 text-cyan-400'
+                : 'border-transparent text-gray-600 hover:border-gray-700 hover:text-gray-400'
             }`}
           >
             Chat
-            <span className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-xs font-semibold text-indigo-700">
+            <span className="rounded-full border border-cyan-500/40 bg-cyan-900/20 px-1.5 py-0.5 text-xs font-semibold text-cyan-400">
               AI
             </span>
           </button>

@@ -89,37 +89,37 @@ export function HabitForm({ mode, habit, onSuccess }: HabitFormProps): React.Rea
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
       {/* Name */}
       <div>
-        <label className="block text-sm font-medium text-gray-700">
-          Name <span className="text-red-500">*</span>
+        <label className="block text-sm font-medium text-gray-400 tracking-wide">
+          Name <span className="text-red-400">*</span>
         </label>
         <input
           {...register('name')}
           autoFocus
           placeholder="e.g. Meditate 10 min"
-          className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          className="mt-1 block w-full rounded-lg border border-gray-700 bg-gray-900/60 px-3 py-2 text-sm text-gray-100 placeholder:text-gray-600 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
         />
-        {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name.message}</p>}
+        {errors.name && <p className="mt-1 text-xs text-red-400">{errors.name.message}</p>}
       </div>
 
       {/* Description */}
       <div>
-        <label className="block text-sm font-medium text-gray-700">Description</label>
+        <label className="block text-sm font-medium text-gray-400 tracking-wide">Description</label>
         <textarea
           {...register('description')}
           rows={2}
           placeholder="Optional details…"
-          className="mt-1 block w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          className="mt-1 block w-full resize-none rounded-lg border border-gray-700 bg-gray-900/60 px-3 py-2 text-sm text-gray-100 placeholder:text-gray-600 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
         />
         {errors.description && (
-          <p className="mt-1 text-xs text-red-600">{errors.description.message}</p>
+          <p className="mt-1 text-xs text-red-400">{errors.description.message}</p>
         )}
       </div>
 
       {/* Frequency */}
       <div>
-        <label className="mb-2 block text-sm font-medium text-gray-700">Frequency</label>
+        <label className="mb-2 block text-sm font-medium text-gray-400 tracking-wide">Frequency</label>
         {isCustom ? (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          <div className="rounded-lg border border-amber-500/30 bg-amber-900/20 px-3 py-2 text-xs text-amber-400">
             This habit uses custom recurrence — configurable in a future release.
           </div>
         ) : (
@@ -139,7 +139,7 @@ export function HabitForm({ mode, habit, onSuccess }: HabitFormProps): React.Rea
       {/* Weekday selector (weekly only) */}
       {frequencyType === 'weekly' && !isCustom && (
         <div>
-          <label className="mb-2 block text-sm font-medium text-gray-700">Days</label>
+          <label className="mb-2 block text-sm font-medium text-gray-400 tracking-wide">Days</label>
           <Controller
             name="weekdayMask"
             control={control}
@@ -156,20 +156,20 @@ export function HabitForm({ mode, habit, onSuccess }: HabitFormProps): React.Rea
 
       {/* Preferred time */}
       <div>
-        <label className="block text-sm font-medium text-gray-700">Preferred time</label>
+        <label className="block text-sm font-medium text-gray-400 tracking-wide">Preferred time</label>
         <input
           {...register('preferredTime')}
           type="time"
-          className="mt-1 block w-48 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          className="mt-1 block w-48 rounded-lg border border-gray-700 bg-gray-900/60 px-3 py-2 text-sm text-gray-100 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
         />
         {errors.preferredTime && (
-          <p className="mt-1 text-xs text-red-600">{errors.preferredTime.message}</p>
+          <p className="mt-1 text-xs text-red-400">{errors.preferredTime.message}</p>
         )}
       </div>
 
       {/* Difficulty */}
       <div>
-        <label className="mb-2 block text-sm font-medium text-gray-700">Difficulty</label>
+        <label className="mb-2 block text-sm font-medium text-gray-400 tracking-wide">Difficulty</label>
         <Controller
           name="difficulty"
           control={control}
@@ -180,10 +180,10 @@ export function HabitForm({ mode, habit, onSuccess }: HabitFormProps): React.Rea
                   key={v}
                   type="button"
                   onClick={() => field.onChange(v)}
-                  className={`h-8 w-8 rounded-full text-xs font-semibold transition-colors ${
+                  className={`h-8 w-8 rounded-full text-xs font-semibold transition-all ${
                     field.value === v
-                      ? 'bg-indigo-600 text-white'
-                      : 'border border-gray-200 text-gray-500 hover:border-indigo-300'
+                      ? 'border border-purple-500 bg-purple-500/20 text-purple-300 shadow-[0_0_8px_rgba(168,85,247,0.4)]'
+                      : 'border border-gray-700 text-gray-500 hover:border-purple-500/50 hover:text-gray-300'
                   }`}
                 >
                   {v}
@@ -192,13 +192,13 @@ export function HabitForm({ mode, habit, onSuccess }: HabitFormProps): React.Rea
             </div>
           )}
         />
-        <p className="mt-1 text-xs text-gray-400">1 = easy · 5 = hard</p>
+        <p className="mt-1 text-xs text-gray-600">1 = easy · 5 = hard</p>
       </div>
 
       <button
         type="submit"
         disabled={isPending}
-        className="w-full rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+        className="w-full rounded-lg border border-purple-500/50 bg-purple-500/10 py-2.5 text-sm font-semibold text-purple-300 hover:bg-purple-500/20 hover:border-purple-400 hover:shadow-[0_0_15px_rgba(168,85,247,0.3)] transition-all disabled:opacity-50"
       >
         {isPending ? 'Saving…' : mode === 'create' ? 'Create habit' : 'Save changes'}
       </button>

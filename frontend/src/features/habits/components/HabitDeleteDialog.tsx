@@ -33,11 +33,11 @@ export function HabitDeleteDialog({ open, onClose, habit }: HabitDeleteDialogPro
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
-        <h2 className="text-lg font-semibold text-gray-900">Remove &ldquo;{habit.name}&rdquo;?</h2>
+      <div className="w-full max-w-sm rounded-2xl border border-purple-500/30 bg-gray-950/90 backdrop-blur-md p-6 shadow-[0_0_40px_rgba(168,85,247,0.2)]">
+        <h2 className="text-lg font-semibold text-gray-100">Remove &ldquo;{habit.name}&rdquo;?</h2>
         <p className="mt-2 text-sm text-gray-500">
           Archiving hides the habit but keeps your history. Permanent deletion removes all data.
         </p>
@@ -47,7 +47,7 @@ export function HabitDeleteDialog({ open, onClose, habit }: HabitDeleteDialogPro
             type="button"
             disabled={isPending}
             onClick={handleArchive}
-            className="w-full rounded-lg border border-gray-200 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            className="w-full rounded-lg border border-gray-700 py-2.5 text-sm font-medium text-gray-300 hover:border-cyan-500/50 hover:text-cyan-400 transition-colors disabled:opacity-50"
           >
             Archive (keep history)
           </button>
@@ -57,7 +57,7 @@ export function HabitDeleteDialog({ open, onClose, habit }: HabitDeleteDialogPro
               type="button"
               disabled={isPending}
               onClick={handleDelete}
-              className="w-full rounded-lg bg-red-600 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+              className="w-full rounded-lg border border-red-500/50 bg-red-900/20 py-2.5 text-sm font-semibold text-red-400 hover:bg-red-900/40 transition-colors disabled:opacity-50"
             >
               Delete permanently
             </button>
@@ -66,7 +66,7 @@ export function HabitDeleteDialog({ open, onClose, habit }: HabitDeleteDialogPro
           <button
             type="button"
             onClick={onClose}
-            className="w-full py-2 text-sm text-gray-400 hover:text-gray-600"
+            className="w-full py-2 text-sm text-gray-600 hover:text-gray-400 transition-colors"
           >
             Cancel
           </button>

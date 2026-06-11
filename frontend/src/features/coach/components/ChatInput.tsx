@@ -29,10 +29,10 @@ export function ChatInput({ value, onChange, onSubmit, disabled }: Props): React
   }
 
   return (
-    <div className="border-t border-gray-100 bg-white px-4 py-3">
+    <div className="border-t border-gray-800 bg-black/30 px-4 py-3">
       <div
-        className={`flex items-end gap-2 rounded-xl border bg-gray-50 px-3 py-2 transition-colors ${
-          disabled ? 'border-gray-200 opacity-60' : 'border-gray-200 focus-within:border-indigo-400 focus-within:bg-white'
+        className={`flex items-end gap-2 rounded-xl border bg-gray-900/60 px-3 py-2 transition-all ${
+          disabled ? 'border-gray-800 opacity-60' : 'border-gray-700 focus-within:border-purple-500/60 focus-within:shadow-[0_0_10px_rgba(168,85,247,0.15)]'
         }`}
       >
         <textarea
@@ -47,13 +47,13 @@ export function ChatInput({ value, onChange, onSubmit, disabled }: Props): React
               ? 'Your Coach is analyzing your habit data…'
               : 'Ask your AI Coach anything about your habits…'
           }
-          className="flex-1 resize-none bg-transparent text-sm text-gray-800 placeholder-gray-400 outline-none disabled:cursor-not-allowed"
+          className="flex-1 resize-none bg-transparent text-sm text-gray-200 placeholder-gray-600 outline-none disabled:cursor-not-allowed"
         />
 
         <div className="flex shrink-0 flex-col items-end gap-1">
           {value.length > 0 && (
             <span
-              className={`text-xs ${remaining <= 50 ? 'text-amber-500' : 'text-gray-400'}`}
+              className={`text-xs font-mono ${remaining <= 50 ? 'text-amber-400' : 'text-gray-600'}`}
             >
               {remaining}
             </span>
@@ -63,7 +63,7 @@ export function ChatInput({ value, onChange, onSubmit, disabled }: Props): React
             onClick={onSubmit}
             disabled={disabled || !value.trim()}
             aria-label="Send message"
-            className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-cyan-500/50 bg-cyan-500/10 text-cyan-400 transition-all hover:bg-cyan-500/20 hover:shadow-[0_0_10px_rgba(34,211,238,0.3)] disabled:cursor-not-allowed disabled:border-gray-700 disabled:bg-transparent disabled:text-gray-700"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -77,9 +77,9 @@ export function ChatInput({ value, onChange, onSubmit, disabled }: Props): React
           </button>
         </div>
       </div>
-      <p className="mt-1.5 px-1 text-xs text-gray-400">
-        Press <kbd className="rounded bg-gray-100 px-1 font-mono text-xs">Enter</kbd> to send ·{' '}
-        <kbd className="rounded bg-gray-100 px-1 font-mono text-xs">Shift+Enter</kbd> for new line
+      <p className="mt-1.5 px-1 text-xs text-gray-700">
+        Press <kbd className="rounded border border-gray-700 bg-gray-800 px-1 font-mono text-xs">Enter</kbd> to send ·{' '}
+        <kbd className="rounded border border-gray-700 bg-gray-800 px-1 font-mono text-xs">Shift+Enter</kbd> for new line
       </p>
     </div>
   );

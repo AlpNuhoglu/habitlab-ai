@@ -21,7 +21,7 @@ function WeekdayBarChartInner({ data, locale }: Props): React.ReactElement {
   if (data.length === 0) {
     return (
       <div className="flex h-40 items-center justify-center">
-        <p className="text-xs text-gray-400">No completions recorded yet.</p>
+        <p className="text-xs text-gray-600">No completions recorded yet.</p>
       </div>
     );
   }
@@ -34,13 +34,15 @@ function WeekdayBarChartInner({ data, locale }: Props): React.ReactElement {
   return (
     <ResponsiveContainer width="100%" height={160}>
       <BarChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-        <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(168,85,247,0.1)" />
+        <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6b7280' }} />
+        <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#6b7280' }} />
         <Tooltip
           formatter={(value) => [`${typeof value === 'number' ? value : 0} completions`, 'Count']}
+          contentStyle={{ backgroundColor: '#0f0f0f', border: '1px solid rgba(168,85,247,0.3)', borderRadius: '8px', color: '#e2e8f0' }}
+          labelStyle={{ color: '#a78bfa' }}
         />
-        <Bar dataKey="count" fill="#10b981" radius={[3, 3, 0, 0]} />
+        <Bar dataKey="count" fill="#a78bfa" radius={[3, 3, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );

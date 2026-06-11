@@ -19,7 +19,7 @@ function CompletionTrendLineInner({ data }: Props): React.ReactElement {
   if (data.length === 0) {
     return (
       <div className="flex h-40 items-center justify-center">
-        <p className="text-xs text-gray-400">Log more days to see a trend.</p>
+        <p className="text-xs text-gray-600">Log more days to see a trend.</p>
       </div>
     );
   }
@@ -35,19 +35,21 @@ function CompletionTrendLineInner({ data }: Props): React.ReactElement {
   return (
     <ResponsiveContainer width="100%" height={160}>
       <LineChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-        <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-        <YAxis domain={[0, 100]} unit="%" tick={{ fontSize: 11 }} />
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(168,85,247,0.1)" />
+        <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#6b7280' }} />
+        <YAxis domain={[0, 100]} unit="%" tick={{ fontSize: 11, fill: '#6b7280' }} />
         <Tooltip
           formatter={(value) => [`${typeof value === 'number' ? value : 0}%`, 'Completion rate']}
+          contentStyle={{ backgroundColor: '#0f0f0f', border: '1px solid rgba(168,85,247,0.3)', borderRadius: '8px', color: '#e2e8f0' }}
+          labelStyle={{ color: '#a78bfa' }}
         />
         <Line
           type="monotone"
           dataKey="rate"
-          stroke="#10b981"
+          stroke="#22d3ee"
           strokeWidth={2}
-          dot={isDot ? { r: 5 } : { r: 3 }}
-          activeDot={{ r: 6 }}
+          dot={isDot ? { r: 5, fill: '#22d3ee' } : { r: 3, fill: '#22d3ee' }}
+          activeDot={{ r: 6, fill: '#a78bfa' }}
         />
       </LineChart>
     </ResponsiveContainer>

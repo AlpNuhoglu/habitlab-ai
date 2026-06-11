@@ -18,7 +18,7 @@ export function HabitMiniAnalytics({ habitId }: HabitMiniAnalyticsProps): React.
   });
 
   if (isPending) {
-    return <div className="h-20 animate-pulse rounded-lg bg-gray-100" />;
+    return <div className="h-20 animate-pulse rounded-lg bg-gray-800/60" />;
   }
 
   if (!data) return <></>;
@@ -27,7 +27,7 @@ export function HabitMiniAnalytics({ habitId }: HabitMiniAnalyticsProps): React.
   const bestHour = data.bestHour != null ? `${String(data.bestHour).padStart(2, '0')}:00` : null;
 
   return (
-    <div className="flex gap-4 rounded-xl border border-gray-100 bg-white p-4">
+    <div className="flex gap-4 rounded-xl border border-purple-500/20 bg-gray-900/40 backdrop-blur-md p-4">
       <Stat label="Best day" value={bestDay ?? '—'} />
       <Stat label="Best time" value={bestHour ?? '—'} />
       <Stat label="7d rate" value={`${Math.round(data.completionRate7d * 100)}%`} />
@@ -39,8 +39,8 @@ export function HabitMiniAnalytics({ habitId }: HabitMiniAnalyticsProps): React.
 function Stat({ label, value }: { label: string; value: string }): React.ReactElement {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-xs text-gray-400">{label}</span>
-      <span className="text-sm font-semibold text-gray-900">{value}</span>
+      <span className="text-xs tracking-wider uppercase text-gray-600">{label}</span>
+      <span className="text-sm font-semibold text-purple-400 font-mono">{value}</span>
     </div>
   );
 }

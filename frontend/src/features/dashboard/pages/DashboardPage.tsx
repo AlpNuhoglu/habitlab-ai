@@ -62,13 +62,13 @@ export function DashboardPage(): React.ReactElement {
             <DashboardSummaryTiles summary={summary} />
 
             <section>
-              <h2 className="mb-3 text-sm font-semibold text-gray-700">Today&apos;s habits</h2>
+              <h2 className="mb-3 text-xs font-semibold tracking-widest uppercase text-gray-500">Today&apos;s habits</h2>
               <TodayList summary={summary} />
             </section>
 
             {summary.activeRecommendations.length > 0 && (
               <section>
-                <h2 className="mb-3 text-sm font-semibold text-gray-700">Recommendations</h2>
+                <h2 className="mb-3 text-xs font-semibold tracking-widest uppercase text-gray-500">Recommendations</h2>
                 <div className="space-y-3">
                   {summary.activeRecommendations.slice(0, 3).map((r, i) => (
                     <RecommendationCard

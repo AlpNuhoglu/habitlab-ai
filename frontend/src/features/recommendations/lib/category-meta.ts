@@ -11,37 +11,37 @@ export const CATEGORY_META: Record<RecommendationCategory, CategoryMeta> = {
   reschedule: {
     emoji: '⏰',
     label: 'Reschedule',
-    accentClass: 'text-blue-600 bg-blue-50',
+    accentClass: 'border border-cyan-500/40 bg-cyan-900/20 text-cyan-400',
     acceptLabel: 'Move reminder',
   },
   reduce_difficulty: {
     emoji: '📉',
     label: 'Lower difficulty',
-    accentClass: 'text-amber-600 bg-amber-50',
+    accentClass: 'border border-amber-500/40 bg-amber-900/20 text-amber-400',
     acceptLabel: 'Lower difficulty',
   },
   streak_celebration: {
     emoji: '🔥',
     label: 'Streak',
-    accentClass: 'text-orange-600 bg-orange-50',
+    accentClass: 'border border-orange-500/40 bg-orange-900/20 text-orange-400',
     acceptLabel: 'Got it!',
   },
   encouragement_after_skip: {
     emoji: '💪',
     label: 'Encouragement',
-    accentClass: 'text-rose-600 bg-rose-50',
+    accentClass: 'border border-fuchsia-500/40 bg-fuchsia-900/20 text-fuchsia-400',
     acceptLabel: 'Thanks!',
   },
   consistency_reinforcement: {
     emoji: '⭐',
     label: 'Consistency',
-    accentClass: 'text-emerald-600 bg-emerald-50',
+    accentClass: 'border border-emerald-500/40 bg-emerald-900/20 text-emerald-400',
     acceptLabel: 'Keep going!',
   },
   retroactive_logging_reminder: {
     emoji: '📝',
     label: 'Log reminder',
-    accentClass: 'text-violet-600 bg-violet-50',
+    accentClass: 'border border-purple-500/40 bg-purple-900/20 text-purple-400',
     acceptLabel: 'Log now',
   },
 };

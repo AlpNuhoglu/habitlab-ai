@@ -20,7 +20,7 @@ export function TrackerGrid({ rows, dates }: TrackerGridProps): React.ReactEleme
             <div key={habit.id} className="flex items-center gap-1">
               <Link
                 to={`/habits/${habit.id}`}
-                className="w-40 shrink-0 truncate text-right text-xs text-gray-600 hover:text-indigo-600 pr-2"
+                className="w-40 shrink-0 truncate text-right text-xs text-gray-500 hover:text-cyan-400 pr-2 transition-colors font-mono"
               >
                 {habit.name}
               </Link>

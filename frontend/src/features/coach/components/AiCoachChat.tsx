@@ -9,12 +9,12 @@ import { TypingIndicator } from './TypingIndicator';
 function EmptyState(): React.ReactElement {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-indigo-100">
+      <div className="flex h-14 w-14 items-center justify-center rounded-full border border-purple-500/40 bg-purple-900/20">
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 24 24"
           fill="currentColor"
-          className="h-7 w-7 text-indigo-600"
+          className="h-7 w-7 text-purple-400"
           aria-hidden="true"
         >
           <path
@@ -25,7 +25,7 @@ function EmptyState(): React.ReactElement {
         </svg>
       </div>
       <div>
-        <p className="text-sm font-medium text-gray-800">Your AI Coach is ready</p>
+        <p className="text-sm font-medium text-gray-200">Your AI Coach is ready</p>
         <p className="mt-1 max-w-xs text-xs text-gray-500">
           Ask anything about your habits — streaks, best times, what to improve, or how to stay
           motivated. Your data is already loaded.
@@ -40,7 +40,7 @@ function EmptyState(): React.ReactElement {
           <button
             key={prompt}
             type="button"
-            className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 transition-colors hover:bg-indigo-100"
+            className="rounded-full border border-purple-500/40 bg-purple-900/20 px-3 py-1.5 text-xs font-medium text-purple-300 transition-all hover:border-purple-400 hover:bg-purple-900/30 hover:shadow-[0_0_8px_rgba(168,85,247,0.2)]"
             onClick={() => {
               // Bubble up via a custom event; AiCoachChat listens and fills the input
               window.dispatchEvent(new CustomEvent('coach:suggestion', { detail: prompt }));
@@ -89,27 +89,27 @@ export function AiCoachChat(): React.ReactElement {
   const showEmpty = messages.length === 0 && !historyQuery.isPending;
 
   return (
-    <div className="flex h-[calc(100vh-10rem)] flex-col overflow-hidden rounded-xl border border-gray-200 bg-gray-50 shadow-sm">
+    <div className="flex h-[calc(100vh-10rem)] flex-col overflow-hidden rounded-xl border border-purple-500/20 bg-gray-950/60 backdrop-blur-md shadow-[0_0_30px_rgba(168,85,247,0.1)]">
       {/* Header */}
-      <div className="flex items-center gap-3 border-b border-gray-100 bg-white px-4 py-3">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600">
+      <div className="flex items-center gap-3 border-b border-gray-800 bg-black/40 px-4 py-3">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full border border-cyan-500/40 bg-cyan-900/20">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 20 20"
             fill="currentColor"
-            className="h-4 w-4 text-white"
+            className="h-4 w-4 text-cyan-400"
             aria-hidden="true"
           >
             <path d="M10 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM6 8a2 2 0 1 1-4 0 2 2 0 0 1 4 0ZM1.49 15.326a.78.78 0 0 1-.358-.442 3 3 0 0 1 4.308-3.516 6.484 6.484 0 0 0-1.905 3.959c-.023.222-.014.442.025.654a4.97 4.97 0 0 1-2.07-.655ZM16.44 15.98a4.97 4.97 0 0 0 2.07-.654.78.78 0 0 0 .357-.442 3 3 0 0 0-4.308-3.517 6.484 6.484 0 0 1 1.907 3.96 2.32 2.32 0 0 1-.026.654ZM18 8a2 2 0 1 1-4 0 2 2 0 0 1 4 0ZM5.304 16.19a.844.844 0 0 1-.277-.71 5 5 0 0 1 9.947 0 .843.843 0 0 1-.277.71A6.975 6.975 0 0 1 10 18a6.974 6.974 0 0 1-4.696-1.81Z" />
           </svg>
         </div>
         <div>
-          <p className="text-sm font-semibold text-gray-900">HabitLab Coach</p>
-          <p className="text-xs text-gray-500">Powered by behavioral science · your data is loaded</p>
+          <p className="text-sm font-semibold text-gray-100 tracking-wide">HabitLab Coach</p>
+          <p className="text-xs text-gray-600">Powered by behavioral science · your data is loaded</p>
         </div>
         <div className="ml-auto flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-green-400" aria-hidden="true" />
-          <span className="text-xs text-gray-500">Ready</span>
+          <span className="h-2 w-2 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.6)]" aria-hidden="true" />
+          <span className="text-xs text-gray-600">Ready</span>
         </div>
       </div>
 
@@ -117,12 +117,12 @@ export function AiCoachChat(): React.ReactElement {
       <div className="flex flex-1 flex-col overflow-y-auto px-4 py-4">
         {historyQuery.isPending && (
           <div className="flex flex-1 items-center justify-center">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-purple-500 border-t-transparent" />
           </div>
         )}
 
         {historyQuery.isError && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="rounded-lg border border-red-500/30 bg-red-900/20 px-4 py-3 text-sm text-red-400">
             Could not load chat history. Please refresh.
           </div>
         )}

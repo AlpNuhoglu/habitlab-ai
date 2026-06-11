@@ -12,10 +12,10 @@ interface HabitCalendarHeatmapProps {
 }
 
 function cellColor(day: CalendarDay | undefined, isBefore: boolean): string {
-  if (isBefore) return 'bg-gray-50';
-  if (!day || day.status === null) return 'bg-gray-200';
-  if (day.status === 'completed') return 'bg-emerald-500';
-  return 'bg-red-200'; // skipped
+  if (isBefore) return 'bg-gray-900/30';
+  if (!day || day.status === null) return 'bg-gray-800';
+  if (day.status === 'completed') return 'bg-cyan-500 shadow-[0_0_4px_rgba(34,211,238,0.5)]';
+  return 'bg-red-900/60'; // skipped
 }
 
 export function HabitCalendarHeatmap({
@@ -53,7 +53,7 @@ export function HabitCalendarHeatmap({
   }, [from, to]);
 
   if (isPending) {
-    return <div className="h-24 animate-pulse rounded-lg bg-gray-100" />;
+    return <div className="h-24 animate-pulse rounded-lg bg-gray-800/60" />;
   }
 
   return (
@@ -78,10 +78,10 @@ export function HabitCalendarHeatmap({
       </div>
 
       {/* Legend */}
-      <div className="mt-2 flex items-center gap-3 text-xs text-gray-400">
-        <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" /> Completed</span>
-        <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-red-200" /> Skipped</span>
-        <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-gray-200" /> No data</span>
+      <div className="mt-2 flex items-center gap-3 text-xs text-gray-600">
+        <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-cyan-500" /> Completed</span>
+        <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-red-900/60" /> Skipped</span>
+        <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-gray-800" /> No data</span>
       </div>
     </div>
   );

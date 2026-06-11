@@ -50,7 +50,7 @@ export function RecommendationCard({
   return (
     <div
       ref={impressionRef}
-      className="flex gap-3 rounded-xl border border-gray-100 bg-white p-4 shadow-sm"
+      className="flex gap-3 rounded-xl border border-purple-500/20 bg-gray-900/40 backdrop-blur-md p-4 hover:border-purple-400/40 hover:shadow-[0_0_15px_rgba(168,85,247,0.1)] transition-all"
     >
       <div className="min-w-0 flex-1 space-y-2">
         {/* Header: badges */}
@@ -61,7 +61,7 @@ export function RecommendationCard({
 
         {/* Title — server-authoritative, never wrapped in VariantSlot */}
         <p
-          className={`text-sm font-semibold text-gray-900 ${
+          className={`text-sm font-semibold text-gray-100 ${
             compact ? 'line-clamp-1' : 'line-clamp-2'
           }`}
         >
@@ -70,7 +70,7 @@ export function RecommendationCard({
 
         {/* Body — server-authoritative, layout-clamped against suspicious payloads */}
         {!compact && (
-          <p className="line-clamp-4 max-h-24 overflow-hidden text-xs text-gray-600">
+          <p className="line-clamp-4 max-h-24 overflow-hidden text-xs text-gray-400">
             {rec.body}
           </p>
         )}
@@ -87,7 +87,7 @@ export function RecommendationCard({
             type="button"
             disabled={isPending}
             onClick={() => onAccept?.(rec)}
-            className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+            className="rounded-md border border-cyan-500/50 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-400 hover:bg-cyan-500/20 hover:shadow-[0_0_10px_rgba(34,211,238,0.3)] transition-all disabled:opacity-50"
           >
             <VariantSlot id="coach.action.accept">{meta.acceptLabel}</VariantSlot>
           </button>
@@ -95,14 +95,14 @@ export function RecommendationCard({
             type="button"
             disabled={isPending}
             onClick={() => onDismiss?.(rec)}
-            className="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+            className="rounded-md border border-gray-700 px-3 py-1 text-xs font-medium text-gray-500 hover:border-gray-600 hover:text-gray-400 transition-colors disabled:opacity-50"
           >
             Not now
           </button>
         </div>
 
         {habitName && (
-          <p className="text-[10px] text-gray-400">{habitName}</p>
+          <p className="text-[10px] text-gray-600 font-mono">{habitName}</p>
         )}
       </div>
     </div>

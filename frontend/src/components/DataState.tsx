@@ -23,7 +23,7 @@ export function DataState<T>({
 
   if (isError) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+      <div className="rounded-lg border border-red-500/30 bg-red-900/20 px-4 py-3 text-sm text-red-400">
         Something went wrong. Please refresh the page.
       </div>
     );
@@ -40,7 +40,7 @@ function DefaultSkeleton(): React.ReactElement {
   return (
     <div className="space-y-3 animate-pulse">
       {[...Array(3)].map((_, i) => (
-        <div key={i} className="h-16 rounded-lg bg-gray-200" />
+        <div key={i} className="h-16 rounded-lg bg-gray-800/60" />
       ))}
     </div>
   );

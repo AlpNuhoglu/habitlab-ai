@@ -56,7 +56,7 @@ export function HabitDetailPage(): React.ReactElement {
   return (
     <div>
       <div className="mb-1">
-        <Link to="/habits" className="text-xs text-gray-400 hover:text-gray-600">
+        <Link to="/habits" className="text-xs text-gray-600 hover:text-cyan-400 transition-colors">
           ← Habits
         </Link>
       </div>
@@ -76,14 +76,14 @@ export function HabitDetailPage(): React.ReactElement {
                   <button
                     type="button"
                     onClick={() => setEditOpen(true)}
-                    className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
+                    className="rounded-lg border border-gray-700 px-3 py-1.5 text-sm font-medium text-gray-400 hover:border-cyan-500/50 hover:text-cyan-400 transition-colors"
                   >
                     Edit
                   </button>
                   <button
                     type="button"
                     onClick={() => setDeleteOpen(true)}
-                    className="rounded-lg border border-red-100 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50"
+                    className="rounded-lg border border-red-500/30 px-3 py-1.5 text-sm font-medium text-red-400 hover:bg-red-900/20 transition-colors"
                   >
                     Archive
                   </button>
@@ -92,7 +92,7 @@ export function HabitDetailPage(): React.ReactElement {
             />
 
             {/* Tab navigation */}
-            <div className="flex gap-1 border-b border-gray-200">
+            <div className="flex gap-1 border-b border-gray-800">
               <TabButton active={activeTab === 'overview'} onClick={() => setActiveTab('overview')}>
                 Overview
               </TabButton>
@@ -145,10 +145,10 @@ function TabButton({ active, onClick, children }: TabButtonProps): React.ReactEl
     <button
       type="button"
       onClick={onClick}
-      className={`px-4 py-2 text-sm font-medium transition-colors ${
+      className={`px-4 py-2 text-sm font-medium tracking-wide transition-colors ${
         active
-          ? 'border-b-2 border-gray-900 text-gray-900'
-          : 'text-gray-400 hover:text-gray-600'
+          ? 'border-b-2 border-purple-500 text-purple-400'
+          : 'text-gray-600 hover:text-gray-400'
       }`}
     >
       {children}
@@ -179,7 +179,7 @@ function OverviewTab({ habit, today, yearAgo }: OverviewTabProps): React.ReactEl
 
       {/* Heatmap */}
       <section>
-        <h2 className="mb-3 text-sm font-semibold text-gray-700">Activity (last 365 days)</h2>
+        <h2 className="mb-3 text-xs font-semibold tracking-widest uppercase text-gray-500">Activity (last 365 days)</h2>
         <HabitCalendarHeatmap
           habitId={habit.id}
           habitCreatedAt={habit.createdAt}
@@ -190,7 +190,7 @@ function OverviewTab({ habit, today, yearAgo }: OverviewTabProps): React.ReactEl
 
       {/* Mini analytics */}
       <section>
-        <h2 className="mb-3 text-sm font-semibold text-gray-700">Patterns</h2>
+        <h2 className="mb-3 text-xs font-semibold tracking-widest uppercase text-gray-500">Patterns</h2>
         <HabitMiniAnalytics habitId={habit.id} />
       </section>
     </div>
@@ -311,8 +311,8 @@ function AnalyticsTab({ habitId, habitCreatedAt, today, yearAgo, locale }: Analy
           <HourBarChart data={hourBuckets} locale={locale} format="24h" />
         </ChartFrame>
 
-        <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-          <h3 className="mb-3 text-sm font-semibold text-gray-700">Best patterns</h3>
+        <div className="rounded-xl border border-purple-500/20 bg-gray-900/40 backdrop-blur-md p-4">
+          <h3 className="mb-3 text-xs font-semibold tracking-widest uppercase text-gray-500">Best patterns</h3>
           <div className="flex gap-6">
             <Stat label="Best weekday" value={bestDayLabel} />
             <Stat label="Best time" value={bestTimeLabel} />
@@ -321,7 +321,7 @@ function AnalyticsTab({ habitId, habitCreatedAt, today, yearAgo, locale }: Analy
       </div>
 
       <section>
-        <h2 className="mb-3 text-sm font-semibold text-gray-700">Activity (last 365 days)</h2>
+        <h2 className="mb-3 text-xs font-semibold tracking-widest uppercase text-gray-500">Activity (last 365 days)</h2>
         <HabitCalendarHeatmap
           habitId={habitId}
           habitCreatedAt={habitCreatedAt}
@@ -336,8 +336,8 @@ function AnalyticsTab({ habitId, habitCreatedAt, today, yearAgo, locale }: Analy
 function Stat({ label, value }: { label: string; value: string }): React.ReactElement {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-xs text-gray-400">{label}</span>
-      <span className="text-sm font-semibold text-gray-900">{value}</span>
+      <span className="text-xs tracking-wider uppercase text-gray-600">{label}</span>
+      <span className="text-sm font-semibold text-cyan-400 font-mono">{value}</span>
     </div>
   );
 }
@@ -358,9 +358,9 @@ function indexOfMax(arr: readonly number[]): number | null {
 
 function StatCard({ label, value }: { label: string; value: string }): React.ReactElement {
   return (
-    <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-      <p className="text-xs text-gray-400">{label}</p>
-      <p className="mt-1 text-lg font-bold text-gray-900">{value}</p>
+    <div className="rounded-xl border border-cyan-500/20 bg-gray-900/40 backdrop-blur-md p-4 hover:border-cyan-400/40 hover:shadow-[0_0_12px_rgba(34,211,238,0.1)] transition-all">
+      <p className="text-xs tracking-widest uppercase text-gray-500">{label}</p>
+      <p className="mt-2 text-lg font-bold text-cyan-400 font-mono">{value}</p>
     </div>
   );
 }

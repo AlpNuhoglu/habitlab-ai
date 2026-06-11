@@ -37,8 +37,8 @@ export function HabitCheckbox({ habit, date, size = 'md' }: HabitCheckboxProps):
       }
       className={`flex items-center justify-center border-2 transition-all ${sizeClasses} ${
         isCompleted
-          ? 'border-emerald-500 bg-emerald-500 text-white hover:border-emerald-600 hover:bg-emerald-600'
-          : 'border-gray-300 bg-white hover:border-indigo-400'
+          ? 'border-cyan-500 bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 hover:shadow-[0_0_10px_rgba(34,211,238,0.4)]'
+          : 'border-gray-600 bg-transparent hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)]'
       } ${isFuture ? 'cursor-not-allowed opacity-30' : 'cursor-pointer'}`}
     >
       {isCompleted && (

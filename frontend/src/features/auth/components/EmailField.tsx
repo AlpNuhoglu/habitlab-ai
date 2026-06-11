@@ -14,7 +14,7 @@ export function EmailField({
   const id = 'field-email';
   return (
     <div className="space-y-1">
-      <label htmlFor={id} className="block text-sm font-medium text-gray-700">
+      <label htmlFor={id} className="block text-sm font-medium text-gray-400 tracking-wide">
         {label}
       </label>
       <input
@@ -26,17 +26,17 @@ export function EmailField({
         aria-invalid={error ? 'true' : 'false'}
         aria-describedby={error ? `${id}-error` : undefined}
         className={[
-          'block w-full rounded-lg border px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400',
-          'shadow-sm transition-colors duration-150',
-          'focus:outline-none focus:ring-2 focus:ring-navy-500 focus:border-navy-500',
+          'block w-full rounded-lg border px-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-600',
+          'bg-gray-900/60 transition-colors duration-150',
+          'focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500',
           error
-            ? 'border-red-400 bg-red-50 focus:ring-red-400 focus:border-red-400'
-            : 'border-gray-300 bg-white hover:border-gray-400',
+            ? 'border-red-500/50 focus:ring-red-500 focus:border-red-500'
+            : 'border-gray-700 hover:border-gray-600',
         ].join(' ')}
         placeholder="you@example.com"
       />
       {error && (
-        <p id={`${id}-error`} role="alert" className="text-xs text-red-600 mt-1">
+        <p id={`${id}-error`} role="alert" className="text-xs text-red-400 mt-1">
           {error.message}
         </p>
       )}

@@ -8,7 +8,41 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
+  body {
+    @apply bg-black text-white;
+  }
+
   *:focus-visible {
-    @apply outline-none ring-2 ring-navy-500 ring-offset-2;
+    @apply outline-none ring-2 ring-purple-500 ring-offset-2 ring-offset-black;
+  }
+}
+
+@layer utilities {
+  .glow-purple {
+    box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);
+  }
+  .glow-cyan {
+    box-shadow: 0 0 15px rgba(34, 211, 238, 0.4);
+  }
+  .glow-fuchsia {
+    box-shadow: 0 0 15px rgba(232, 121, 249, 0.4);
+  }
+  .glow-blue {
+    box-shadow: 0 0 15px rgba(96, 165, 250, 0.4);
+  }
+  .text-gradient {
+    @apply bg-gradient-to-r from-purple-400 via-fuchsia-400 to-cyan-400 bg-clip-text text-transparent;
+  }
+  .glass-card {
+    @apply bg-gray-900/40 backdrop-blur-md border border-purple-500/20 rounded-xl;
+  }
+  .glass-card-cyan {
+    @apply bg-gray-900/40 backdrop-blur-md border border-cyan-500/20 rounded-xl;
+  }
+  .neon-border-purple {
+    @apply border border-purple-500/30 hover:border-purple-400/60 transition-colors;
+  }
+  .neon-border-cyan {
+    @apply border border-cyan-500/30 hover:border-cyan-400/60 transition-colors;
   }
 }

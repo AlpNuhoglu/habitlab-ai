@@ -28,14 +28,14 @@ export function HabitCard({
 
   if (variant === 'compact') {
     return (
-      <div className="flex items-center gap-3 rounded-lg border border-gray-100 bg-white px-3 py-2.5 shadow-sm">
+      <div className="flex items-center gap-3 rounded-lg border border-purple-500/20 bg-gray-900/40 backdrop-blur-md px-3 py-2.5 hover:border-purple-400/40 transition-all">
         <HabitCheckbox habit={habit} size="sm" />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-gray-900">{habit.name}</p>
-          <p className="text-xs text-gray-400">{formatStreak(habit.currentStreak)}</p>
+          <p className="truncate text-sm font-medium text-gray-100">{habit.name}</p>
+          <p className="text-xs text-gray-500">{formatStreak(habit.currentStreak)}</p>
         </div>
         {due && (
-          <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600">
+          <span className="rounded-full border border-purple-500/40 bg-purple-900/30 px-2 py-0.5 text-xs font-medium text-purple-400">
             Due
           </span>
         )}
@@ -45,22 +45,22 @@ export function HabitCard({
 
   if (variant === 'row') {
     return (
-      <div className="flex items-center gap-4 border-b border-gray-100 py-3">
+      <div className="flex items-center gap-4 border-b border-gray-800 py-3 hover:bg-gray-900/20 transition-colors">
         <HabitCheckbox habit={habit} />
         <Link
           to={`/habits/${habit.id}`}
-          className="min-w-0 flex-1 hover:underline"
+          className="min-w-0 flex-1 hover:text-cyan-400 transition-colors"
         >
-          <p className="truncate text-sm font-medium text-gray-900">{habit.name}</p>
+          <p className="truncate text-sm font-medium text-gray-200">{habit.name}</p>
         </Link>
-        <span className="hidden text-xs text-gray-400 sm:block">{formatRate(habit.completionRate30d)}</span>
-        <span className="text-xs text-gray-400">{formatStreak(habit.currentStreak)}</span>
+        <span className="hidden text-xs text-gray-500 font-mono sm:block">{formatRate(habit.completionRate30d)}</span>
+        <span className="text-xs text-gray-500 font-mono">{formatStreak(habit.currentStreak)}</span>
         <div className="flex gap-1">
           {onEdit && (
             <button
               type="button"
               onClick={() => onEdit(habit)}
-              className="rounded p-1 text-gray-400 hover:text-gray-600"
+              className="rounded p-1 text-gray-600 hover:text-cyan-400 transition-colors"
               aria-label="Edit"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -72,7 +72,7 @@ export function HabitCard({
             <button
               type="button"
               onClick={() => onDelete(habit)}
-              className="rounded p-1 text-gray-400 hover:text-red-500"
+              className="rounded p-1 text-gray-600 hover:text-red-400 transition-colors"
               aria-label="Archive"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -87,11 +87,11 @@ export function HabitCard({
 
   // default card
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+    <div className="flex flex-col gap-3 rounded-xl border border-purple-500/20 bg-gray-900/40 backdrop-blur-md p-4 hover:border-purple-400/40 hover:shadow-[0_0_15px_rgba(168,85,247,0.15)] transition-all">
       <div className="flex items-start justify-between">
         <Link
           to={`/habits/${habit.id}`}
-          className="min-w-0 flex-1 font-medium text-gray-900 hover:text-indigo-600 hover:underline"
+          className="min-w-0 flex-1 font-medium text-gray-100 hover:text-cyan-400 transition-colors"
         >
           <span className="line-clamp-2">{habit.name}</span>
         </Link>
@@ -100,7 +100,7 @@ export function HabitCard({
             <button
               type="button"
               onClick={() => onEdit(habit)}
-              className="rounded p-1 text-gray-300 hover:text-gray-500"
+              className="rounded p-1 text-gray-600 hover:text-cyan-400 transition-colors"
               aria-label="Edit"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -113,15 +113,15 @@ export function HabitCard({
 
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-0.5">
-          <span className="text-xs font-semibold text-gray-700">{formatStreak(habit.currentStreak)}</span>
-          <span className="text-xs text-gray-400">{formatRate(habit.completionRate30d)} last 30d</span>
+          <span className="text-xs font-semibold text-purple-400 font-mono">{formatStreak(habit.currentStreak)}</span>
+          <span className="text-xs text-gray-500 font-mono">{formatRate(habit.completionRate30d)} last 30d</span>
         </div>
         <HabitCheckbox habit={habit} />
       </div>
 
       {due && habit.todayStatus !== 'completed' && (
         <div className="mt-auto">
-          <span className="inline-flex rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600">
+          <span className="inline-flex rounded-full border border-purple-500/40 bg-purple-900/30 px-2 py-0.5 text-xs font-medium text-purple-400">
             Due today
           </span>
         </div>

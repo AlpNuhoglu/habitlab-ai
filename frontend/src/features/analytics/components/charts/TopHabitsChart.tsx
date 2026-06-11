@@ -13,15 +13,15 @@ import {
 import type { TopHabitRow } from '../../types';
 
 const COLOR_MAP: Record<string, string> = {
-  slate: '#64748b',
-  blue: '#3b82f6',
-  emerald: '#10b981',
-  amber: '#f59e0b',
-  rose: '#f43f5e',
-  violet: '#8b5cf6',
+  slate: '#22d3ee',
+  blue: '#38bdf8',
+  emerald: '#34d399',
+  amber: '#a78bfa',
+  rose: '#e879f9',
+  violet: '#818cf8',
 };
 
-const FALLBACK_COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#f43f5e'];
+const FALLBACK_COLORS = ['#22d3ee', '#a78bfa', '#e879f9', '#38bdf8', '#34d399'];
 
 interface Props {
   readonly data: TopHabitRow[];
@@ -49,10 +49,14 @@ function TopHabitsChartInner({ data }: Props): React.ReactElement {
         data={chartData}
         margin={{ top: 4, right: 24, left: 4, bottom: 0 }}
       >
-        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
-        <XAxis type="number" domain={[0, 100]} unit="%" tick={{ fontSize: 11 }} />
-        <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 11 }} />
-        <Tooltip formatter={(value) => [`${typeof value === 'number' ? value : 0}%`, '30-day rate']} />
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(168,85,247,0.1)" horizontal={false} />
+        <XAxis type="number" domain={[0, 100]} unit="%" tick={{ fontSize: 11, fill: '#6b7280' }} />
+        <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 11, fill: '#9ca3af' }} />
+        <Tooltip
+          formatter={(value) => [`${typeof value === 'number' ? value : 0}%`, '30-day rate']}
+          contentStyle={{ backgroundColor: '#0f0f0f', border: '1px solid rgba(168,85,247,0.3)', borderRadius: '8px', color: '#e2e8f0' }}
+          labelStyle={{ color: '#a78bfa' }}
+        />
         <Bar dataKey="rate" radius={[0, 3, 3, 0]}>
           {chartData.map((entry, index) => (
             <Cell key={index} fill={entry.color} />

@@ -7,6 +7,7 @@ import { ExperimentsBoundary } from '../features/experiments/components/Experime
 import { SwUpdateBanner, PushToast, reconcileLocalSubscription } from '../features/notifications';
 import { MaintenanceBanner } from './MaintenanceBanner';
 import { OfflineBanner } from './OfflineBanner';
+import { ToastContainer } from './ToastContainer';
 
 const NAV_LINKS = [
   { to: '/dashboard', label: 'Dashboard' },
@@ -100,6 +101,7 @@ export function AppLayout(): React.ReactElement {
 
       <SwUpdateBanner />
       <PushToast />
+      <ToastContainer />
     </div>
   );
 }

@@ -1,7 +1,9 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
   Inject,
   Post,
   Query,
@@ -55,5 +57,14 @@ export class ChatController {
     const { sub: userId } = getUser(req);
     const pageSize = limit ? Math.max(1, parseInt(limit, 10)) : 50;
     return this.chatService.getHistory(userId, pageSize, before);
+  }
+
+  @Delete('history')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Clear the entire conversation history for a fresh start' })
+  @ApiResponse({ status: 204, description: 'History cleared' })
+  async clearHistory(@Req() req: Request): Promise<void> {
+    const { sub: userId } = getUser(req);
+    await this.chatService.clearHistory(userId);
   }
 }

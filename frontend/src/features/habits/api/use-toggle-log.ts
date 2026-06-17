@@ -1,9 +1,10 @@
 import { useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { apiFetch } from '../../../api/client';
+import { apiFetch, ApiException } from '../../../api/client';
 import { generateIdempotencyKey, type IdempotencyKey } from '../../../api/idempotency';
 import { analyticsKeys, habitKeys, dashboardKeys } from '../../../api/query-keys';
+import { toast } from '../../../hooks/use-toast';
 import { coalesceToggle } from '../lib/log-coalesce';
 import type { CalendarDay, Habit, DashboardSummary, ToggleLogContext } from '../types';
 
@@ -40,6 +41,26 @@ function patchCalendarCache(
       return [...existing, { date, status: 'completed' as const }];
     },
   );
+}
+
+/** Maps a failed toggle to a short, user-readable message. */
+function toggleErrorMessage(err: unknown): string {
+  if (err instanceof ApiException) {
+    switch (err.error.kind) {
+      case 'network':
+        return "Couldn't reach the server — check your connection and try again.";
+      case 'conflict':
+        return err.error.message;
+      case 'validation':
+        // Backend rejects logs older than 7 days or in the future.
+        return err.error.fields['_form']?.[0] ?? "That date can't be logged.";
+      case 'rate_limited':
+        return 'Too many requests — please wait a moment and try again.';
+      default:
+        return "Couldn't save that change. Please try again.";
+    }
+  }
+  return "Couldn't save that change. Please try again.";
 }
 
 export function useToggleLog() {
@@ -134,7 +155,7 @@ export function useToggleLog() {
               idemOpts,
             );
           }
-        } catch {
+        } catch (err) {
           // Rollback all caches to pre-click state
           if (context.snapshotDetail) {
             queryClient.setQueryData(habitKeys.detail(habitId), context.snapshotDetail);
@@ -145,7 +166,9 @@ export function useToggleLog() {
           calendarSnapshots.forEach((data, key) => {
             queryClient.setQueryData(key as Parameters<typeof queryClient.setQueryData>[0], data);
           });
-          throw new Error('Toggle failed');
+          // Surface the failure — this callback runs detached from any mutation, so
+          // without a toast the cell would silently revert with no explanation.
+          toast(toggleErrorMessage(err), 'error');
         } finally {
           idemKeysRef.current.delete(coalesceKey);
           // Reconcile with server truth

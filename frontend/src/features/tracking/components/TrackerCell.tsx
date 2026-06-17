@@ -2,7 +2,7 @@ import React from 'react';
 
 import { useCurrentUser } from '../../auth/api/use-current-user';
 import { useToggleLog } from '../../habits/api/use-toggle-log';
-import { resolveToday } from '../../habits/lib/today';
+import { isBeyondRetroLimit, resolveToday } from '../../habits/lib/today';
 import type { Habit, CalendarDay } from '../../habits/types';
 
 interface TrackerCellProps {
@@ -28,14 +28,24 @@ export const TrackerCell = React.memo(function TrackerCell({
   const { toggle } = useToggleLog();
   const today = user ? resolveToday(user.timezone) : '';
   const isFuture = date > today;
+  // The backend rejects logs older than 7 days (RETRO_LIMIT_EXCEEDED). Block the
+  // click here so the cell never flashes a ✓ that the server silently rolls back.
+  const isLocked = user ? isBeyondRetroLimit(date, user.timezone) : false;
+  const isDisabled = isFuture || isLocked;
   const isCompleted = day?.status === 'completed';
   const isSkipped = day?.status === 'skipped';
+
+  const title = isFuture
+    ? `${habit.name} — ${date}: future date`
+    : isLocked
+    ? `${habit.name} — ${date}: too old to log (7-day limit)`
+    : `${habit.name} — ${date}: ${day?.status ?? 'no log'}`;
 
   return (
     <button
       type="button"
-      disabled={isFuture}
-      title={`${habit.name} — ${date}: ${day?.status ?? 'no log'}`}
+      disabled={isDisabled}
+      title={title}
       onClick={() =>
         toggle({
           habitId: habit.id,
@@ -44,7 +54,7 @@ export const TrackerCell = React.memo(function TrackerCell({
         })
       }
       className={`h-8 w-8 rounded-md border text-xs font-medium transition-all ${
-        isFuture
+        isDisabled
           ? 'cursor-not-allowed border-gray-800 bg-gray-900/20 opacity-30'
           : isCompleted
           ? 'border-cyan-500 bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 hover:shadow-[0_0_8px_rgba(34,211,238,0.3)]'

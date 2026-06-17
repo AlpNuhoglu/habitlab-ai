@@ -317,6 +317,11 @@ export class ChatService {
     return { messages: page.map(toDto), hasMore };
   }
 
+  /** Deletes the user's entire conversation history so the next session starts fresh. */
+  async clearHistory(userId: string): Promise<void> {
+    await this.dataSource.query(`DELETE FROM chat_messages WHERE user_id = $1`, [userId]);
+  }
+
   // ─── Private helpers ────────────────────────────────────────────────────────
 
   private async isChatQuotaExceeded(userId: string, maxPerDay: number): Promise<boolean> {

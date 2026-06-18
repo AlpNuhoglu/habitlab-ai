@@ -11,8 +11,10 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 
+import { THROTTLE_TIERS } from '../../common/throttler/throttle-tiers';
 import { ChatService } from './chat.service';
 import { ChatHistoryDto, ChatMessageDto } from './dto/chat-message.dto';
 import { SendMessageDto } from './dto/send-message.dto';
@@ -33,6 +35,13 @@ function getUser(req: Request): RequestUser {
 export class ChatController {
   constructor(@Inject(ChatService) private readonly chatService: ChatService) {}
 
+  // LLM calls are the most expensive endpoint to abuse. This burst limit
+  // complements the per-user daily quota and system budget gates inside
+  // ChatService — it stops a rapid flood from hammering the provider and
+  // tripping the circuit breaker for everyone.
+  @Throttle({
+    default: { limit: THROTTLE_TIERS.chat.limit, ttl: THROTTLE_TIERS.chat.ttl },
+  })
   @Post()
   @ApiOperation({ summary: 'Send a message to the AI Coach and receive a personalized reply' })
   @ApiResponse({ status: 201, description: 'Assistant reply message' })

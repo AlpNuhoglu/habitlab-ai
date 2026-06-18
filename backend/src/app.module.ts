@@ -6,6 +6,8 @@ import { resolve } from 'path';
 
 import { ProblemDetailsFilter } from './common/filters/problem-details.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { AppThrottlerGuard } from './common/throttler/app-throttler.guard';
+import { AppThrottlerModule } from './common/throttler/app-throttler.module';
 import { HealthController } from './common/health.controller';
 import { InfrastructureModule } from './infrastructure/infrastructure.module';
 import { HttpLoggingInterceptor } from './infrastructure/logger/http-logging.interceptor';
@@ -45,6 +47,7 @@ import { RecommendationsModule } from './modules/recommendations/recommendations
       }),
     }),
     InfrastructureModule,
+    AppThrottlerModule,
     AuthModule,
     HabitsModule,
     EventsModule,
@@ -56,6 +59,10 @@ import { RecommendationsModule } from './modules/recommendations/recommendations
   ],
   controllers: [HealthController],
   providers: [
+    // Order matters: global guards run in registration order. The throttler
+    // must run before auth so the default tier protects authenticated routes
+    // and a valid-token flood is still rate limited.
+    { provide: APP_GUARD, useClass: AppThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_FILTER, useClass: ProblemDetailsFilter },
     { provide: APP_INTERCEPTOR, useClass: HttpLoggingInterceptor },

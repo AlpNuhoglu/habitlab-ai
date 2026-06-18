@@ -1,5 +1,6 @@
 import { Controller, Get, Inject, Res } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { Response } from 'express';
 import Redis from 'ioredis';
 import { DataSource } from 'typeorm';
@@ -13,6 +14,9 @@ interface ReadyResponse {
   checks: Record<string, CheckResult>;
 }
 
+// Liveness/readiness probes are polled frequently by orchestrators and uptime
+// monitors — never throttle them.
+@SkipThrottle()
 @Public()
 @ApiTags('health')
 @Controller()

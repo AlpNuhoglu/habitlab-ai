@@ -11,9 +11,11 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 
 import { Public } from '../../common/decorators/public.decorator';
+import { THROTTLE_TIERS } from '../../common/throttler/throttle-tiers';
 import { clearAuthCookies, setAuthCookies } from '../../common/helpers/cookie.helper';
 import { AuthService } from './auth.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -41,12 +43,17 @@ function refreshCookie(req: Request): string | null {
   return cookies['refresh_token'] ?? null;
 }
 
+// Tighten the default tier on the whole auth surface: these routes are the
+// prime target for credential stuffing, account-creation spam, and email
+// bombing. Keyed by IP for the @Public routes (no user yet), by user otherwise.
+@Throttle({
+  default: { limit: THROTTLE_TIERS.auth.limit, ttl: THROTTLE_TIERS.auth.ttl },
+})
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
   constructor(@Inject(AuthService) private readonly authService: AuthService) {}
 
-  // TODO(WP5): rate-limit 5 per IP per hour
   @Public()
   @Post('register')
   @HttpCode(202)
@@ -79,7 +86,6 @@ export class AuthController {
     return { message: 'If that email is unverified, a new link has been sent.' };
   }
 
-  // TODO(WP5): rate-limit 10 per IP per minute
   @Public()
   @Post('login')
   @HttpCode(200)

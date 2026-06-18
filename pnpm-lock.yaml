@@ -210,6 +210,12 @@ importers:
       web-vitals:
         specifier: ^5.2.0
         version: 5.2.0
+      workbox-core:
+        specifier: ^7.4.1
+        version: 7.4.1
+      workbox-precaching:
+        specifier: ^7.4.1
+        version: 7.4.1
       zod:
         specifier: ^3.23.8
         version: 3.25.76

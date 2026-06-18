@@ -1,10 +1,13 @@
 import { Controller, Get, Header, Res } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { Response } from 'express';
 
 import { Public } from '../../common/decorators/public.decorator';
 import { MetricsService } from './metrics.service';
 
+// Scraped on a fixed interval by Prometheus — exempt from rate limiting.
+@SkipThrottle()
 @Public()
 @ApiExcludeController()
 @Controller('metrics')

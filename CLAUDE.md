@@ -214,3 +214,14 @@ Before touching the database schema, check the analysis report section 5.1 — t
 - **OpenAPI drift check**: `pnpm --filter backend generate:openapi` (needs running DB). CI regenerates and diffs against committed `backend/openapi.json`. Initial generation: `pnpm db:up && pnpm --filter backend generate:openapi && git add backend/openapi.json`.
 - **Coverage threshold**: E2E tests have a 70% line coverage floor (`backend/test/jest-e2e.json`). Actual coverage: ~85% lines, ~73% branches, ~78% functions.
 - **prom-client**: added as runtime dep `^15.1.3`. No other new runtime deps in WP10.
+
+---
+
+## Rate limiting notes
+
+- **Library**: `@nestjs/throttler@5.2.0` (v5 pairs with NestJS 10; v6 requires Nest 11). No third-party storage package — a custom `RedisThrottlerStorage` (`common/throttler/`) implements the v5 `ThrottlerStorage` interface against the existing `REDIS_CLIENT` (`INCR` + `PEXPIRE` via a pipeline, fixed-window).
+- **Cluster-wide**: counters live in Redis, so limits hold across instances and restarts. In test/stub mode `REDIS_CLIENT` is null → `AppThrottlerModule`'s `skipIf` disables throttling entirely so e2e suites don't flake on 429s.
+- **Tracker key** (`AppThrottlerGuard.getTracker`): authenticated `user.sub` when present, else client IP. Public auth routes (no user) fall back to IP — correct for brute-force/credential-stuffing. `app.set('trust proxy', 1)` in `main.ts` so the real client IP is read from `X-Forwarded-For` behind a proxy.
+- **Tiers** (`common/throttler/throttle-tiers.ts`): `default` 100/60s (global baseline on every route via `APP_GUARD`); `auth` 5/60s (controller-level `@Throttle` on `AuthController` — register/login/password/refresh); `chat` 10/60s (`@Throttle` on `POST /coach/chat`, complements the per-user daily LLM quota + system budget gates in `ChatService`).
+- **Exemptions**: `@SkipThrottle()` on `HealthController` (`/health`, `/ready`) and `MetricsController` (`/metrics`) — polled by orchestrators/Prometheus.
+- **429 response**: `ProblemDetailsFilter` already maps 429 → slug `rate-limited`, title "Too Many Requests" (RFC 7807). The frontend `apiFetch` already handles `kind: 'rate_limited'`.

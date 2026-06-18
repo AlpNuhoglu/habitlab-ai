@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
@@ -9,10 +10,15 @@ import { AppModule } from './app.module';
 import { AppLoggerService } from './infrastructure/logger/app-logger.service';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
 
   const logger = app.get(AppLoggerService);
   app.useLogger(logger);
+
+  // Behind a reverse proxy (nginx, Fly, etc.) the client IP is in
+  // X-Forwarded-For. Trust the first proxy hop so rate limiting keys on the
+  // real client IP instead of lumping everyone under the proxy's address.
+  app.set('trust proxy', 1);
 
   app.enableShutdownHooks();
 

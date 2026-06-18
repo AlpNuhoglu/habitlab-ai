@@ -48,3 +48,4 @@ coverage/
 coverage-e2e/
 *.lcov
 .aider*
+graphify-out/

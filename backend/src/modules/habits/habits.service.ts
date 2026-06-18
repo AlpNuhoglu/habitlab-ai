@@ -97,6 +97,136 @@ export function computeLongestStreak(completedDatesSorted: string[]): number {
   return longest;
 }
 
+// ─── Frequency-aware streak (FR-044) ──────────────────────────────────────────
+//
+// Daily habits count consecutive completed calendar days. Weekly/custom habits
+// count consecutive *satisfied weeks* — the streak unit is a week, not a day.
+// A week is keyed by its Monday (ISO week start), matching the Mon=0..Sun=6
+// convention used throughout analytics.
+
+/** The streak-relevant frequency fields of a habit. */
+export interface StreakFrequency {
+  frequencyType: string;
+  weekdayMask: number | null;
+  targetCountPerWeek: number | null;
+}
+
+/** Returns the Monday (YYYY-MM-DD) of the ISO week containing the given date. */
+function mondayOfWeek(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  // getUTCDay: Sun=0..Sat=6 → days since Monday: Sun→6, Mon→0, ..., Sat→5
+  const daysSinceMonday = (d.getUTCDay() + 6) % 7;
+  return subtractDays(dateStr, daysSinceMonday);
+}
+
+/** Returns the weekday index for a date in the Mon=0..Sun=6 convention. */
+function weekdayIndex(dateStr: string): number {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  return (d.getUTCDay() + 6) % 7;
+}
+
+/**
+ * Tests whether a single week is satisfied given the completed dates that fall
+ * inside it (keyed by the week's Monday).
+ *
+ *  - weekly: every weekday set in weekday_mask (bit 0=Mon..bit 6=Sun) must be completed.
+ *  - custom: completions in the week must reach target_count_per_week.
+ */
+function isWeekSatisfied(freq: StreakFrequency, weekDates: string[]): boolean {
+  if (freq.frequencyType === 'weekly') {
+    const mask = freq.weekdayMask ?? 0;
+    if (mask === 0) return false;
+    let completedMask = 0;
+    for (const d of weekDates) completedMask |= 1 << weekdayIndex(d);
+    // All required bits present.
+    return (mask & completedMask) === mask;
+  }
+  // custom
+  const target = freq.targetCountPerWeek ?? 0;
+  if (target === 0) return false;
+  return weekDates.length >= target;
+}
+
+/** Groups completed dates by the Monday of their week. */
+function groupByWeek(completedDates: string[]): Map<string, string[]> {
+  const weeks = new Map<string, string[]>();
+  for (const d of completedDates) {
+    const monday = mondayOfWeek(d);
+    const bucket = weeks.get(monday);
+    if (bucket) bucket.push(d);
+    else weeks.set(monday, [d]);
+  }
+  return weeks;
+}
+
+/**
+ * Current streak for any frequency. Daily delegates to the day-level algorithm.
+ * Weekly/custom count consecutive satisfied weeks ending at the current week;
+ * the in-progress current week never breaks the streak (mirrors the day-level
+ * "today in progress" rule).
+ */
+export function computeFrequencyStreak(
+  completedDatesSorted: string[],
+  today: string,
+  freq: StreakFrequency,
+): number {
+  if (freq.frequencyType === 'daily') {
+    return computeCurrentStreak(completedDatesSorted, today);
+  }
+
+  const weeks = groupByWeek(completedDatesSorted);
+  const currentMonday = mondayOfWeek(today);
+
+  let streak = 0;
+  // If the current (in-progress) week is already satisfied, it counts; either
+  // way we then walk backwards through fully-elapsed weeks.
+  let cursor = currentMonday;
+  if (isWeekSatisfied(freq, weeks.get(currentMonday) ?? [])) {
+    streak++;
+  }
+  cursor = subtractDays(cursor, 7);
+
+  while (isWeekSatisfied(freq, weeks.get(cursor) ?? [])) {
+    streak++;
+    cursor = subtractDays(cursor, 7);
+  }
+
+  return streak;
+}
+
+/** All-time longest streak for any frequency (consecutive satisfied weeks for weekly/custom). */
+export function computeFrequencyLongestStreak(
+  completedDatesSorted: string[],
+  freq: StreakFrequency,
+): number {
+  if (freq.frequencyType === 'daily') {
+    return computeLongestStreak(completedDatesSorted);
+  }
+
+  const weeks = groupByWeek(completedDatesSorted);
+  const satisfiedMondays = [...weeks.keys()]
+    .filter((monday) => isWeekSatisfied(freq, weeks.get(monday) ?? []))
+    .sort();
+
+  if (satisfiedMondays.length === 0) return 0;
+
+  let longest = 1;
+  let current = 1;
+  for (let i = 1; i < satisfiedMondays.length; i++) {
+    const prev = new Date((satisfiedMondays[i - 1] as string) + 'T00:00:00Z');
+    const curr = new Date((satisfiedMondays[i] as string) + 'T00:00:00Z');
+    const diffDays = (curr.getTime() - prev.getTime()) / 86_400_000;
+    if (diffDays === 7) {
+      current++;
+      if (current > longest) longest = current;
+    } else {
+      current = 1;
+    }
+  }
+
+  return longest;
+}
+
 /** completion_rate_30d = completed count in last 30 days / 30 (denominator always 30). */
 export function computeCompletionRate30d(logs: HabitLog[], today: string): number {
   const from = subtractDays(today, 29);
@@ -224,7 +354,7 @@ export class HabitsService {
         const completedDates = await this.habitLogRepo.findCompletedDates(userId, habit.id);
         return {
           ...toHabitDto(habit),
-          currentStreak: computeCurrentStreak(completedDates, today),
+          currentStreak: computeFrequencyStreak(completedDates, today, habit),
           completionRate30d: Math.round((rateMap.get(habit.id) ?? 0) * 100) / 100,
         };
       }),
@@ -279,8 +409,8 @@ export class HabitsService {
 
     return {
       ...toHabitDto(habit),
-      currentStreak: computeCurrentStreak(completedDates, today),
-      longestStreak: computeLongestStreak(completedDates),
+      currentStreak: computeFrequencyStreak(completedDates, today, habit),
+      longestStreak: computeFrequencyLongestStreak(completedDates, habit),
       completionRate30d: computeCompletionRate30d(last30, today),
     };
   }
@@ -327,8 +457,8 @@ export class HabitsService {
 
     return {
       ...toHabitDto(updated),
-      currentStreak: computeCurrentStreak(completedDates, today),
-      longestStreak: computeLongestStreak(completedDates),
+      currentStreak: computeFrequencyStreak(completedDates, today, updated),
+      longestStreak: computeFrequencyLongestStreak(completedDates, updated),
       completionRate30d: computeCompletionRate30d(last30, today),
     };
   }
@@ -499,8 +629,8 @@ export class HabitsService {
     return {
       log,
       isNew,
-      currentStreak: computeCurrentStreak(completedDates, today),
-      longestStreak: computeLongestStreak(completedDates),
+      currentStreak: computeFrequencyStreak(completedDates, today, habit),
+      longestStreak: computeFrequencyLongestStreak(completedDates, habit),
     };
   }
 
@@ -654,8 +784,8 @@ export class HabitsService {
       else todayPending++;
 
       const completedDates = await this.habitLogRepo.findCompletedDates(userId, habit.id);
-      const streak = computeCurrentStreak(completedDates, today);
-      const longest = computeLongestStreak(completedDates);
+      const streak = computeFrequencyStreak(completedDates, today, habit);
+      const longest = computeFrequencyLongestStreak(completedDates, habit);
       if (longest > longestStreakAnyHabit) longestStreakAnyHabit = longest;
 
       habitDtos.push({

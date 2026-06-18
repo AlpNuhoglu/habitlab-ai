@@ -110,7 +110,7 @@ Before touching the database schema, check the analysis report section 5.1 — t
 
 ## WP3 implementation notes
 
-- **Weekly/custom habit streak**: WP3 uses the same day-level streak algorithm as daily habits (`computeCurrentStreak` in `habits.service.ts`). The spec says "consecutive satisfied weeks" for weekly/custom — this must be revised in **WP6** when the recommendation engine is built. Ticket: rewrite `computeCurrentStreak` to accept `frequencyType` and compute week-level satisfied-weeks for non-daily habits.
+- **Weekly/custom habit streak**: ✅ **Resolved.** `computeFrequencyStreak` / `computeFrequencyLongestStreak` in `habits.service.ts` dispatch on `frequencyType`. Daily delegates to the day-level `computeCurrentStreak`/`computeLongestStreak` (unchanged). Weekly/custom count consecutive *satisfied weeks* (ISO week, keyed by Monday): **weekly** = every weekday set in `weekday_mask` completed that week; **custom** = completions that week ≥ `target_count_per_week`. The current (in-progress) week never breaks the streak, mirroring the day-level "today in progress" rule. Wired into all 5 read-path call sites in `habits.service.ts` and the analytics worker. Unit tests: `modules/habits/frequency-streak.spec.ts`.
 - **Dashboard performance**: WP3 hits Postgres directly on every `GET /dashboard` (no cache). `X-Cache: MISS` always. Redis warm path comes in WP5 via the analytics worker. ✅ **Resolved in WP5.**
 - **Streak denominator (completionRate30d)**: always 30, regardless of habit age. Consistent UX; agreed in plan review.
 
@@ -124,7 +124,7 @@ Before touching the database schema, check the analysis report section 5.1 — t
 - **Analytics worker**: `AnalyticsWorkerService` — in non-test mode polls Redis Stream `habitlab:events` via XREADGROUP (consumer group `habitlab-analytics`). In test mode, polling is skipped; `handleEvent(event)` is called directly by integration tests. Idempotency via `processed_events(event_id, 'analytics-worker')` INSERT ON CONFLICT DO NOTHING (§6.2.4).
 - **completion_by_hour source**: `EXTRACT(HOUR FROM habit_logs.logged_at AT TIME ZONE users.timezone)` — actual log time, not preferred_time. Gives real behavioral insight ("you actually complete this at 18:00").
 - **completion_by_weekday**: `MOD(EXTRACT(DOW FROM logged_at AT TIME ZONE tz)::int + 6, 7)` — Mon=0..Sun=6 (matches §5.1.8 best_weekday convention).
-- **Weekly/custom streak in analytics worker**: `recomputeHabitAnalytics` uses day-level `computeCurrentStreak` / `computeLongestStreak` (WP3 carry-over). TODO comment in `analytics-worker.service.ts`. Fix in WP6 alongside recommendation engine.
+- **Weekly/custom streak in analytics worker**: ✅ **Resolved.** `recomputeHabitAnalytics` now fetches the habit's `frequency_type` / `weekday_mask` / `target_count_per_week` and uses `computeFrequencyStreak` / `computeFrequencyLongestStreak`. `recomputeUserAnalytics` inherits the corrected values via its `MAX(ha.current_streak)` / `MAX(ha.longest_streak)` rollups — no further change there.
 - **monthly_trend (FR-041)**: not stored in `habit_analytics` DDL — computed on demand per endpoint call and cached with the rest of the analytics response.
 - **completion_rate_all_time (FR-041)**: not stored in `habit_analytics` DDL — computed on demand: `completed_count / days_since_habit_created`.
 - **Migration**: `1745300000000-AnalyticsSchema.ts`. DDL is §5.1.8 + §5.1.9 verbatim. `down()` is empty (forward-only).

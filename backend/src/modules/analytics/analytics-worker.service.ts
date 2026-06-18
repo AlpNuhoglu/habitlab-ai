@@ -8,9 +8,10 @@ import { REDIS_CLIENT } from '../../infrastructure/broker/redis-streams-broker.a
 import { CacheKeys } from '../../infrastructure/cache/cache-keys';
 import { CACHE_SERVICE, ICacheService } from '../../infrastructure/cache/cache.interface';
 import {
-  computeCurrentStreak,
-  computeLongestStreak,
+  computeFrequencyStreak,
+  computeFrequencyLongestStreak,
   todayInTimezone,
+  StreakFrequency,
 } from '../habits/habits.service';
 
 const CONSUMER_NAME = 'analytics-worker';
@@ -114,6 +115,21 @@ export class AnalyticsWorkerService implements OnModuleInit, OnModuleDestroy {
     const timezone = userRows[0]?.timezone ?? 'UTC';
     const today = todayInTimezone(timezone);
 
+    // Frequency drives the streak unit: daily counts days, weekly/custom count
+    // satisfied weeks (FR-044).
+    const freqRows = await em.query<
+      Array<{ frequency_type: string; weekday_mask: number | null; target_count_per_week: number | null }>
+    >(
+      `SELECT frequency_type, weekday_mask, target_count_per_week
+       FROM habits WHERE id = $1`,
+      [habitId],
+    );
+    const freq: StreakFrequency = {
+      frequencyType: freqRows[0]?.frequency_type ?? 'daily',
+      weekdayMask: freqRows[0]?.weekday_mask ?? null,
+      targetCountPerWeek: freqRows[0]?.target_count_per_week ?? null,
+    };
+
     // Completed dates for streak computation — ::text cast ensures the pg driver
     // returns a plain 'YYYY-MM-DD' string instead of a JavaScript Date object.
     const dateRows = await em.query<Array<{ log_date: string }>>(
@@ -123,10 +139,8 @@ export class AnalyticsWorkerService implements OnModuleInit, OnModuleDestroy {
       [habitId],
     );
     const completedDatesSorted = dateRows.map((r) => r.log_date);
-    // TODO: weekly/custom habits should compute streak in units of satisfied weeks, not days.
-    // The day-level algorithm is a WP3 carry-over. Tracked in CLAUDE.md WP5 notes.
-    const currentStreak = computeCurrentStreak(completedDatesSorted, today);
-    const longestStreak = computeLongestStreak(completedDatesSorted);
+    const currentStreak = computeFrequencyStreak(completedDatesSorted, today, freq);
+    const longestStreak = computeFrequencyLongestStreak(completedDatesSorted, freq);
 
     // Completion rates — completed logs divided by fixed denominators
     const rateRow = await em.query<Array<{ rate_7d: string; rate_30d: string; rate_90d: string }>>(

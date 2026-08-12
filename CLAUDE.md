@@ -225,3 +225,26 @@ Before touching the database schema, check the analysis report section 5.1 — t
 - **Tiers** (`common/throttler/throttle-tiers.ts`): `default` 100/60s (global baseline on every route via `APP_GUARD`); `auth` 5/60s (controller-level `@Throttle` on `AuthController` — register/login/password/refresh); `chat` 10/60s (`@Throttle` on `POST /coach/chat`, complements the per-user daily LLM quota + system budget gates in `ChatService`).
 - **Exemptions**: `@SkipThrottle()` on `HealthController` (`/health`, `/ready`) and `MetricsController` (`/metrics`) — polled by orchestrators/Prometheus.
 - **429 response**: `ProblemDetailsFilter` already maps 429 → slug `rate-limited`, title "Too Many Requests" (RFC 7807). The frontend `apiFetch` already handles `kind: 'rate_limited'`.
+
+---
+
+## Auth: refresh token rotation & reuse detection (FR-004)
+
+- **Check order in `refresh()` is load-bearing**: unknown → **reused** → revoked → expired. A rotated token carries *both* `revoked_at` and `replaced_by`, so a generic "is revoked" test placed first swallows the theft signal and reports `TOKEN_INVALID`. Reuse must be tested before revocation.
+- **`findByHash` vs `findActiveByHash`**: `refresh()` uses `findByHash` (no `revoked_at IS NULL` filter) — a replayed token is revoked by definition, so filtering hides exactly the case being detected. `logout()` keeps `findActiveByHash`; active-only is right there.
+- **Rotation is one transaction**: the new token INSERT and old token UPDATE (`revoked_at` + `replaced_by`) commit together via `dataSource.transaction()`. Split across two transactions, a failure in between leaves two live tokens and the old one never reads as reused.
+- **`generateAndStoreTokenPair` returns `refreshTokenId`** and takes an optional `EntityManager`. Rotation no longer re-queries the row it just wrote (that lookup could miss and silently skip revocation).
+- **Repository `em?: EntityManager` pattern**: `create`, `revoke`, `revokeAllForUser` take an optional manager — `const repo = em ? em.getRepository(RefreshToken) : this.repo;`. `resetPassword`/`changePassword` must pass `em`, or revocation commits on its own and survives a rollback of the password change.
+- **`revokeAllForUserExcept` deleted**: zero call sites, and "revoke all but one" is the wrong response to suspected theft — fail secure, revoke everything.
+- **Login timing**: `login()` always runs `bcrypt.compare`, falling back to `DUMMY_PASSWORD_HASH` when no user matches. That constant is generated at module load via `hashSync(randomBytes(...), BCRYPT_ROUNDS)` — a hardcoded hash would desync from the 4-vs-12 test/prod cost split and reopen the channel under test. Measured at cost 12: 160.2ms vs 160.6ms (1.00x); before the fix the unknown path skipped hashing entirely.
+- **Error body has no `code` field.** `ProblemDetailsFilter` maps `code` → an RFC 7807 slug in `type` (`TOKEN_REUSED` → `https://habitlab.ai/problems/token-reused`). Assert on `type`, never `body.code`.
+- **Known gaps, deliberately out of scope** (each its own task): `forgotPassword`/`resendVerification` leak membership through mail-send latency; `register` discloses it outright via `EMAIL_TAKEN`; `pwFingerprint` is only 8 hex chars of the bcrypt hash.
+- **Follow-up — migrate JWT `type`/`purpose` claims to the standard `aud` claim (RFC 7519).** Access tokens use `{ type: 'access' }` and email-verify/password-reset use `{ purpose: ... }`; `aud` is the correct claim and lets `jwtService.verify(token, { audience })` enforce it centrally instead of hand-rolled `if (payload.purpose !== ...)` checks. **Breaking**: tokens already in circulation carry the old shape, so the guard must accept both during a transition window before the old fields are dropped. Touches `jwt-auth.guard.ts` — excluded from the reuse-detection PR to keep that diff reviewable.
+
+---
+
+## graphify (scoped to this project)
+
+- **graphify** (`~/.claude/skills/graphify/SKILL.md`) — turns any input into a knowledge graph. Trigger: `/graphify`.
+- When the user types `/graphify`, invoke the Skill tool with `skill: "graphify"` before doing anything else.
+- Enabled here intentionally (project-level, not global). To use graphify in another repo, add these same lines to that repo's `CLAUDE.md` — do **not** re-create `~/.claude/CLAUDE.md`.

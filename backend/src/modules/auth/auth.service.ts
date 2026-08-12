@@ -31,6 +31,11 @@ import { UserRepository } from './repositories/user.repository';
 // bcrypt cost: 12 in production, 4 in tests for speed (NFR-031)
 const BCRYPT_ROUNDS = process.env['NODE_ENV'] === 'test' ? 4 : 12;
 
+// Compared against when no user matches, so the unknown-email path costs the
+// same as the wrong-password path. Generated at load with the live cost factor:
+// a hardcoded hash would drift from BCRYPT_ROUNDS and leak the difference again.
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync(randomBytes(16).toString('hex'), BCRYPT_ROUNDS);
+
 interface EmailVerifyPayload {
   sub: string;
   purpose: 'email_verify';
@@ -170,10 +175,16 @@ export class AuthService {
       });
 
     const user = await this.userRepo.findByEmail(dto.email);
-    if (!user) throw invalid();
 
-    const passwordMatch = await bcrypt.compare(dto.password, user.passwordHash);
-    if (!passwordMatch) throw invalid();
+    // Always run a comparison, even with no user: returning early on a missing
+    // email answers in ~1ms where a real account takes ~250ms, which tells an
+    // attacker whether the address is registered regardless of the identical
+    // error body.
+    const passwordMatch = await bcrypt.compare(
+      dto.password,
+      user?.passwordHash ?? DUMMY_PASSWORD_HASH,
+    );
+    if (!user || !passwordMatch) throw invalid();
 
     if (!user.emailVerifiedAt) {
       throw new ForbiddenException({

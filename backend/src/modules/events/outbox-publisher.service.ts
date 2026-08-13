@@ -11,6 +11,10 @@ import { MetricsService } from '../../infrastructure/metrics/metrics.service';
 
 const POLL_INTERVAL_MS = 200;
 const BATCH_SIZE = 100;
+const PARTITION_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
+// Provision this far ahead so a missed run (or a stopped instance) cannot
+// reach the edge of coverage before the next check.
+const PARTITION_MONTHS_AHEAD = 3;
 
 interface EventRow {
   id: string;
@@ -26,6 +30,7 @@ interface EventRow {
 export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(OutboxPublisher.name);
   private intervalHandle: ReturnType<typeof setInterval> | null = null;
+  private partitionIntervalHandle: ReturnType<typeof setInterval> | null = null;
   private destroyed = false;
   private inflight: Promise<void> | null = null;
 
@@ -36,7 +41,15 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit(): void {
+    // Before any polling: a missing partition fails the caller's whole
+    // transaction, so coverage must exist before writes are accepted.
+    void this.ensurePartitions();
+
     this.intervalHandle = setInterval(() => void this.poll(), POLL_INTERVAL_MS);
+    this.partitionIntervalHandle = setInterval(
+      () => void this.ensurePartitions(),
+      PARTITION_CHECK_INTERVAL_MS,
+    );
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -45,8 +58,33 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
       clearInterval(this.intervalHandle);
       this.intervalHandle = null;
     }
+    if (this.partitionIntervalHandle !== null) {
+      clearInterval(this.partitionIntervalHandle);
+      this.partitionIntervalHandle = null;
+    }
     if (this.inflight !== null) {
       await this.inflight;
+    }
+  }
+
+  /**
+   * Creates the current month's events partition and the next few, so writes
+   * never hit the edge of coverage. Idempotent — safe on every boot and
+   * across concurrent instances.
+   */
+  async ensurePartitions(): Promise<void> {
+    if (this.destroyed) return;
+    try {
+      for (let offset = 0; offset <= PARTITION_MONTHS_AHEAD; offset += 1) {
+        await this.dataSource.query(
+          `SELECT ensure_events_partition(date_trunc('month', now()) + ($1 || ' months')::interval)`,
+          [offset],
+        );
+      }
+    } catch (err) {
+      // Never crash boot: an existing partition usually still covers today,
+      // and the daily retry will pick this up.
+      this.logger.error(`Events partition maintenance failed: ${String(err)}`);
     }
   }
 

@@ -200,7 +200,7 @@ describe('Auth (e2e)', () => {
     await request(app.getHttpServer()).post('/auth/refresh').set('Cookie', cookies).expect(401);
   });
 
-  it('9. refresh with revoked token → 401 + chain revocation', async () => {
+  it('9. reusing a rotated token → 401 TOKEN_REUSED + whole chain revoked', async () => {
     await registerAndVerify(app, 'refresh2');
 
     const loginRes = await request(app.getHttpServer())
@@ -208,13 +208,59 @@ describe('Auth (e2e)', () => {
       .send({ email: email('refresh2'), password: 'Password1' })
       .expect(200);
 
-    const cookies = getCookies(loginRes);
+    const tokenA = getCookies(loginRes);
 
-    // Rotate once (legitimate)
-    await request(app.getHttpServer()).post('/auth/refresh').set('Cookie', cookies).expect(200);
+    // Two legitimate rotations: A → B → C
+    const rotateB = await request(app.getHttpServer())
+      .post('/auth/refresh')
+      .set('Cookie', tokenA)
+      .expect(200);
+    const tokenB = getCookies(rotateB);
 
-    // Reuse the original (now-revoked) token — triggers chain revocation
-    await request(app.getHttpServer()).post('/auth/refresh').set('Cookie', cookies).expect(401);
+    const rotateC = await request(app.getHttpServer())
+      .post('/auth/refresh')
+      .set('Cookie', tokenB)
+      .expect(200);
+    const tokenC = getCookies(rotateC);
+
+    // Replaying A is theft, not a generic invalid token: the response must say so.
+    const reuseRes = await request(app.getHttpServer())
+      .post('/auth/refresh')
+      .set('Cookie', tokenA)
+      .expect(401);
+    expect((reuseRes.body as { type: string }).type).toContain('token-reused');
+
+    // The real proof of chain revocation: C was valid a moment ago and must now be dead.
+    await request(app.getHttpServer()).post('/auth/refresh').set('Cookie', tokenC).expect(401);
+  });
+
+  it('9b. rotation links the old token to its replacement atomically', async () => {
+    const { userId } = await registerAndVerify(app, 'rotatelink');
+
+    const loginRes = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: email('rotatelink'), password: 'Password1' })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .post('/auth/refresh')
+      .set('Cookie', getCookies(loginRes))
+      .expect(200);
+
+    const ds = app.get(DataSource);
+    const rows: Array<{ id: string; revoked_at: Date | null; replaced_by: string | null }> =
+      await ds.query(
+        `SELECT id, revoked_at, replaced_by FROM refresh_tokens
+         WHERE user_id = $1 ORDER BY issued_at ASC`,
+        [userId],
+      );
+
+    expect(rows).toHaveLength(2);
+    // The rotated-away token carries both markers, or reuse detection cannot fire.
+    expect(rows[0]?.revoked_at).not.toBeNull();
+    expect(rows[0]?.replaced_by).toBe(rows[1]?.id);
+    // The freshly issued token is still active.
+    expect(rows[1]?.revoked_at).toBeNull();
   });
 
   // ─── FR-005 Logout ──────────────────────────────────────────────────────────
@@ -259,6 +305,52 @@ describe('Auth (e2e)', () => {
 
     // Old refresh token must now be rejected
     await request(app.getHttpServer()).post('/auth/refresh').set('Cookie', cookies).expect(401);
+  });
+
+  // ─── FR-007 Reset password ──────────────────────────────────────────────────
+
+  it('11b. password reset revokes every refresh token in the same transaction', async () => {
+    const { userId } = await registerAndVerify(app, 'resetpw');
+
+    const loginRes = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: email('resetpw'), password: 'Password1' })
+      .expect(200);
+
+    const ds = app.get(DataSource);
+    const [userRow]: Array<{ password_hash: string }> = await ds.query(
+      'SELECT password_hash FROM users WHERE id = $1',
+      [userId],
+    );
+
+    // Mint the reset token the same way signPasswordResetToken does.
+    const secret = app.get(ConfigService).getOrThrow<string>('JWT_REFRESH_SECRET');
+    const resetToken = jwt.sign(
+      {
+        sub: userId,
+        purpose: 'pwd_reset',
+        pwFingerprint: (userRow?.password_hash ?? '').slice(0, 8),
+      },
+      secret,
+      { expiresIn: '1h' },
+    );
+
+    await request(app.getHttpServer())
+      .post('/auth/password/reset')
+      .send({ token: resetToken, newPassword: 'ResetPass3' })
+      .expect(200);
+
+    const active: Array<{ count: string }> = await ds.query(
+      'SELECT COUNT(*)::text AS count FROM refresh_tokens WHERE user_id = $1 AND revoked_at IS NULL',
+      [userId],
+    );
+    expect(active[0]?.count).toBe('0');
+
+    // And the session really is dead over HTTP.
+    await request(app.getHttpServer())
+      .post('/auth/refresh')
+      .set('Cookie', getCookies(loginRes))
+      .expect(401);
   });
 
   // ─── FR-009 /me ─────────────────────────────────────────────────────────────

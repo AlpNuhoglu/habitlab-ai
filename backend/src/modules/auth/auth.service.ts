@@ -31,6 +31,11 @@ import { UserRepository } from './repositories/user.repository';
 // bcrypt cost: 12 in production, 4 in tests for speed (NFR-031)
 const BCRYPT_ROUNDS = process.env['NODE_ENV'] === 'test' ? 4 : 12;
 
+// Compared against when no user matches, so the unknown-email path costs the
+// same as the wrong-password path. Generated at load with the live cost factor:
+// a hardcoded hash would drift from BCRYPT_ROUNDS and leak the difference again.
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync(randomBytes(16).toString('hex'), BCRYPT_ROUNDS);
+
 interface EmailVerifyPayload {
   sub: string;
   purpose: 'email_verify';
@@ -94,16 +99,13 @@ export class AuthService {
 
     const user = await this.dataSource.transaction(async (em) => {
       const created = await em.save(
-        em.create(
-          User,
-          {
-            email: dto.email,
-            passwordHash,
-            timezone: dto.timezone,
-            locale: dto.locale,
-            consentGivenAt,
-          },
-        ),
+        em.create(User, {
+          email: dto.email,
+          passwordHash,
+          timezone: dto.timezone,
+          locale: dto.locale,
+          consentGivenAt,
+        }),
       );
 
       await this.emitEvent(em, {
@@ -137,20 +139,11 @@ export class AuthService {
       throw new BadRequestException({ code: 'TOKEN_INVALID', message: 'Invalid token.' });
     }
 
-    if (user.emailVerifiedAt !== null) {
-      throw new BadRequestException({
-        code: 'TOKEN_INVALID',
-        message: 'Email is already verified.',
-      });
-    }
+    if (user.emailVerifiedAt !== null) return; // Already verified, no-op
 
     const verifiedAt = new Date();
     await this.dataSource.transaction(async (em) => {
-      await em.update(
-        User,
-        { id: user.id },
-        { emailVerifiedAt: verifiedAt },
-      );
+      await em.update(User, { id: user.id }, { emailVerifiedAt: verifiedAt });
       await this.emitEvent(em, {
         userId: user.id,
         eventType: 'user.verified',
@@ -182,10 +175,16 @@ export class AuthService {
       });
 
     const user = await this.userRepo.findByEmail(dto.email);
-    if (!user) throw invalid();
 
-    const passwordMatch = await bcrypt.compare(dto.password, user.passwordHash);
-    if (!passwordMatch) throw invalid();
+    // Always run a comparison, even with no user: returning early on a missing
+    // email answers in ~1ms where a real account takes ~250ms, which tells an
+    // attacker whether the address is registered regardless of the identical
+    // error body.
+    const passwordMatch = await bcrypt.compare(
+      dto.password,
+      user?.passwordHash ?? DUMMY_PASSWORD_HASH,
+    );
+    if (!user || !passwordMatch) throw invalid();
 
     if (!user.emailVerifiedAt) {
       throw new ForbiddenException({
@@ -197,11 +196,7 @@ export class AuthService {
     const tokens = await this.generateAndStoreTokenPair(user.id, user.email, meta);
 
     await this.dataSource.transaction(async (em) => {
-      await em.update(
-        User,
-        { id: user.id },
-        { lastLoginAt: new Date() },
-      );
+      await em.update(User, { id: user.id }, { lastLoginAt: new Date() });
       await this.emitEvent(em, {
         userId: user.id,
         eventType: 'user.login',
@@ -218,19 +213,28 @@ export class AuthService {
 
   async refresh(rawRefreshToken: string): Promise<TokenPair> {
     const tokenHash = hashToken(rawRefreshToken);
-    const existing = await this.refreshTokenRepo.findActiveByHash(tokenHash);
+    // Deliberately unfiltered: a replayed token is already revoked, so the
+    // reuse check below only works if revoked rows are still visible here.
+    const existing = await this.refreshTokenRepo.findByHash(tokenHash);
 
     if (!existing) {
       throw new UnauthorizedException({ code: 'TOKEN_INVALID', message: 'Invalid token.' });
     }
 
-    // A token that has already been replaced means it was reused → token theft detected
+    // A token that has already been replaced means it was reused → token theft
+    // detected. This must precede the generic revoked check: a rotated token is
+    // both replaced and revoked, and the revoked branch would otherwise mask it.
     if (existing.replacedBy !== null) {
       await this.refreshTokenRepo.revokeAllForUser(existing.userId, new Date());
       throw new UnauthorizedException({
         code: 'TOKEN_REUSED',
         message: 'Token reuse detected. All sessions have been revoked.',
       });
+    }
+
+    // Revoked without a replacement: logout or a password change killed it.
+    if (existing.revokedAt !== null) {
+      throw new UnauthorizedException({ code: 'TOKEN_INVALID', message: 'Invalid token.' });
     }
 
     if (existing.expiresAt < new Date()) {
@@ -242,19 +246,26 @@ export class AuthService {
       throw new UnauthorizedException({ code: 'TOKEN_INVALID', message: 'Invalid token.' });
     }
 
-    const newTokens = await this.generateAndStoreTokenPair(user.id, user.email, {
-      ip: existing.ipAddress,
-      userAgent: existing.userAgent,
+    // Issuing the replacement and retiring the old token must commit together,
+    // or a failure in between leaves two usable tokens and rotation stops
+    // meaning anything.
+    return this.dataSource.transaction(async (em) => {
+      const newTokens = await this.generateAndStoreTokenPair(
+        user.id,
+        user.email,
+        { ip: existing.ipAddress, userAgent: existing.userAgent },
+        em,
+      );
+
+      await this.refreshTokenRepo.revoke(
+        existing.id,
+        new Date(),
+        newTokens.refreshTokenId,
+        em,
+      );
+
+      return newTokens;
     });
-
-    // Revoke old token and link it to the new one
-    const newHash = hashToken(newTokens.rawRefreshToken);
-    const newToken = await this.refreshTokenRepo.findActiveByHash(newHash);
-    if (newToken) {
-      await this.refreshTokenRepo.revoke(existing.id, new Date(), newToken.id);
-    }
-
-    return newTokens;
   }
 
   // ─── Logout (FR-005) ──────────────────────────────────────────────────────
@@ -302,18 +313,17 @@ export class AuthService {
 
     // Fingerprint check: token is invalid if password has already changed
     if (user.passwordHash.slice(0, 8) !== payload.pwFingerprint) {
-      throw new BadRequestException({ code: 'TOKEN_INVALID', message: 'Token has already been used.' });
+      throw new BadRequestException({
+        code: 'TOKEN_INVALID',
+        message: 'Token has already been used.',
+      });
     }
 
     const newHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
 
     await this.dataSource.transaction(async (em) => {
-      await em.update(
-        User,
-        { id: user.id },
-        { passwordHash: newHash },
-      );
-      await this.refreshTokenRepo.revokeAllForUser(user.id, new Date());
+      await em.update(User, { id: user.id }, { passwordHash: newHash });
+      await this.refreshTokenRepo.revokeAllForUser(user.id, new Date(), em);
       await this.emitEvent(em, {
         userId: user.id,
         eventType: 'user.password_changed',
@@ -326,10 +336,7 @@ export class AuthService {
 
   // ─── Change password (FR-008) ─────────────────────────────────────────────
 
-  async changePassword(
-    userId: string,
-    dto: ChangePasswordDto,
-  ): Promise<void> {
+  async changePassword(userId: string, dto: ChangePasswordDto): Promise<void> {
     const user = await this.userRepo.findById(userId);
     if (!user) throw new UnauthorizedException();
 
@@ -344,12 +351,8 @@ export class AuthService {
     const newHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
 
     await this.dataSource.transaction(async (em) => {
-      await em.update(
-        User,
-        { id: userId },
-        { passwordHash: newHash },
-      );
-      await this.refreshTokenRepo.revokeAllForUser(userId, new Date());
+      await em.update(User, { id: userId }, { passwordHash: newHash });
+      await this.refreshTokenRepo.revokeAllForUser(userId, new Date(), em);
       await this.emitEvent(em, {
         userId,
         eventType: 'user.password_changed',
@@ -359,7 +362,12 @@ export class AuthService {
       });
     });
 
-    this.audit.log({ userId, action: 'user.password_changed', targetType: 'user', targetId: userId });
+    this.audit.log({
+      userId,
+      action: 'user.password_changed',
+      targetType: 'user',
+      targetId: userId,
+    });
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -368,26 +376,32 @@ export class AuthService {
     userId: string,
     email: string,
     meta: LoginMeta,
-  ): Promise<TokenPair> {
+    em?: EntityManager,
+  ): Promise<TokenPair & { refreshTokenId: string }> {
     const accessToken = this.jwtService.sign({ sub: userId, email, type: 'access' as const });
 
     const raw = randomBytes(40).toString('hex');
     const tokenHash = hashToken(raw);
-    const ttlSeconds = parseInt(
-      this.config.get<string>('JWT_REFRESH_TTL') ?? '2592000',
-      10,
-    );
+    const ttlSeconds = parseInt(this.config.get<string>('JWT_REFRESH_TTL') ?? '2592000', 10);
     const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
 
-    await this.refreshTokenRepo.create({
-      userId,
-      tokenHash,
-      expiresAt,
-      ...(meta.ip !== null ? { ipAddress: meta.ip } : {}),
-      ...(meta.userAgent !== null ? { userAgent: meta.userAgent } : {}),
-    });
+    const stored = await this.refreshTokenRepo.create(
+      {
+        userId,
+        tokenHash,
+        expiresAt,
+        ...(meta.ip !== null ? { ipAddress: meta.ip } : {}),
+        ...(meta.userAgent !== null ? { userAgent: meta.userAgent } : {}),
+      },
+      em,
+    );
 
-    return { accessToken, rawRefreshToken: raw, refreshExpiresAt: expiresAt };
+    return {
+      accessToken,
+      rawRefreshToken: raw,
+      refreshExpiresAt: expiresAt,
+      refreshTokenId: stored.id,
+    };
   }
 
   private signEmailVerifyToken(userId: string): string {
@@ -414,7 +428,10 @@ export class AuthService {
         secret: this.config.getOrThrow<string>(secretKey),
       });
     } catch {
-      throw new BadRequestException({ code: 'TOKEN_INVALID', message: 'Invalid or expired token.' });
+      throw new BadRequestException({
+        code: 'TOKEN_INVALID',
+        message: 'Invalid or expired token.',
+      });
     }
   }
 
@@ -464,7 +481,8 @@ export class AuthService {
 
   async getMe(userId: string): Promise<Omit<User, 'passwordHash'>> {
     const user = await this.userRepo.findById(userId);
-    if (!user) throw new UnauthorizedException({ code: 'TOKEN_INVALID', message: 'User not found.' });
+    if (!user)
+      throw new UnauthorizedException({ code: 'TOKEN_INVALID', message: 'User not found.' });
     const { passwordHash: _pw, ...safe } = user;
     return safe;
   }
@@ -478,11 +496,11 @@ export class AuthService {
         ? { preferences: { experiments_opted_out: dto.experimentsOptedOut } }
         : {}),
     });
-    if (!updated) throw new UnauthorizedException({ code: 'TOKEN_INVALID', message: 'User not found.' });
+    if (!updated)
+      throw new UnauthorizedException({ code: 'TOKEN_INVALID', message: 'User not found.' });
     const { passwordHash: _pw, ...safe } = updated;
     return safe;
   }
-
 }
 
 function hashToken(raw: string): string {

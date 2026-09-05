@@ -1,5 +1,6 @@
 import type { HabitAnalytics } from '../analytics/entities/habit-analytics.entity';
 import type { LLMPrompt } from '../../infrastructure/llm/llm-provider.interface';
+import { sanitizePromptField } from '../../infrastructure/llm/prompt-sanitizer';
 
 // §6.3.2 — verbatim system prompt (only {{locale}} is substituted)
 const SYSTEM_TEMPLATE = `You are a friendly, concise habit coach. You write short, specific,
@@ -85,17 +86,21 @@ export function buildLlmPrompt(input: PromptBuilderInput): LLMPrompt {
 
   const system = SYSTEM_TEMPLATE.replace('{{locale}}', locale);
 
+  // Every replacement passes a function, not a string. A string replacement gives
+  // `$&`, `$'` and "$`" special meaning, so a habit name containing them would
+  // duplicate parts of the template and leave later placeholders unsubstituted.
+  // A function's return value is used literally.
   const user = USER_TEMPLATE
-    .replace('{{habitName}}', habitName)
-    .replace('{{difficulty}}', String(difficulty))
-    .replace('{{preferredTime}}', preferredTime ?? 'not set')
-    .replace('{{completionRate30d}}', String(completionPct))
-    .replace('{{bestWeekdayName}}', bestWeekdayName)
-    .replace('{{worstWeekdayName}}', worstWeekdayName)
-    .replace('{{bestHourOfDay}}', bestHourOfDay)
-    .replace('{{currentStreak}}', String(analytics.currentStreak))
-    .replace('{{longestStreak}}', String(analytics.longestStreak))
-    .replace('{{ruleCategory}}', ruleCategory);
+    .replace('{{habitName}}', () => sanitizePromptField(habitName))
+    .replace('{{difficulty}}', () => String(difficulty))
+    .replace('{{preferredTime}}', () => preferredTime ?? 'not set')
+    .replace('{{completionRate30d}}', () => String(completionPct))
+    .replace('{{bestWeekdayName}}', () => bestWeekdayName)
+    .replace('{{worstWeekdayName}}', () => worstWeekdayName)
+    .replace('{{bestHourOfDay}}', () => bestHourOfDay)
+    .replace('{{currentStreak}}', () => String(analytics.currentStreak))
+    .replace('{{longestStreak}}', () => String(analytics.longestStreak))
+    .replace('{{ruleCategory}}', () => ruleCategory);
 
   return { system, user };
 }

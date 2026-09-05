@@ -11,6 +11,15 @@ const gitSha = (() => {
 
 // See https://vitejs.dev/config/
 export default defineConfig({
+  // Security boundary — do not widen either of these.
+  // envDir keeps env loading inside `frontend/`, so the repo-root .env (live
+  // OPENAI/ANTHROPIC/RESEND keys, VAPID private key, JWT secrets, DATABASE_URL)
+  // is never read into the browser bundle. envPrefix is the second barrier:
+  // only VITE_* reaches client code, and every VITE_* value is public.
+  // Both restate Vite's defaults — pinned so a future config change has to be
+  // deliberate rather than silently loading root secrets into the build.
+  envDir: __dirname,
+  envPrefix: 'VITE_',
   plugins: [
     react(),
     VitePWA({

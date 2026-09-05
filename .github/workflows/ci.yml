@@ -57,14 +57,32 @@ jobs:
 
       - name: Secret scan
         run: |
-          # Reject hard-coded secrets: private keys, bearer tokens, or high-entropy assignments.
-          # VAPID/JWT env vars are fine — they come from process.env, not literals.
-          if git grep -rn \
-            -e "BEGIN.*PRIVATE KEY" \
-            -e "PRIVATE_KEY\s*=\s*['\"]" \
-            -e "JWT_.*SECRET\s*=\s*['\"][^'\"]\{8,\}" \
-            -- "*.ts" "*.js" "*.json" ":!*.example*" ":!test/**" ":!*spec*"; then
+          # Reject committed credentials: live provider key formats, private keys,
+          # quoted secret assignments, and credentialed remote DB URLs.
+          #
+          # .env* files ARE scanned — an accidentally committed .env is the single
+          # highest-risk leak path, and it carries no .ts/.js extension to match on.
+          # Example files are scanned too: a real key pasted into .env.example is a
+          # common accident, and placeholders don't match these value patterns.
+          #
+          # The DB rule requires a dotted hostname so it fires on remote hosts but
+          # not on local/CI DSNs (localhost, the `postgres` compose service), whose
+          # throwaway passwords have no value off the developer's machine.
+          # ERE only (no PCRE lookahead) — portable across runner git builds.
+          if git grep -nIE \
+            -e "sk-(proj-)?[A-Za-z0-9_-]{20,}" \
+            -e "sk-ant-[A-Za-z0-9_-]{20,}" \
+            -e "re_[A-Za-z0-9]{20,}" \
+            -e "sk_(live|test)_[A-Za-z0-9]{20,}" \
+            -e "AKIA[0-9A-Z]{16}" \
+            -e "gh[pousr]_[A-Za-z0-9]{20,}" \
+            -e "BEGIN [A-Z ]*PRIVATE KEY" \
+            -e "(PRIVATE_KEY|_SECRET|_TOKEN)[[:space:]]*[:=][[:space:]]*['\"][^'\"]{16,}" \
+            -e "postgres(ql)?://[^:@/ ]+:[^@/ ]+@[A-Za-z0-9_-]+\.[A-Za-z0-9._-]+" \
+            -- "*.ts" "*.js" "*.json" "*.yml" "*.yaml" ".env*" "**/.env*" \
+               ":!pnpm-lock.yaml" ":!**/test/**" ":!**/*.spec.*"; then
             echo "ERROR: possible hard-coded secret detected (see matches above)"
+            echo "If this is a false positive, narrow the pattern — do not delete the rule."
             exit 1
           fi
           echo "Secret scan passed."

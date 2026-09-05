@@ -134,9 +134,9 @@ export class AnalyticsWorkerService implements OnModuleInit, OnModuleDestroy {
     // returns a plain 'YYYY-MM-DD' string instead of a JavaScript Date object.
     const dateRows = await em.query<Array<{ log_date: string }>>(
       `SELECT log_date::text FROM habit_logs
-       WHERE habit_id = $1 AND status = 'completed'
+       WHERE habit_id = $1 AND user_id = $2 AND status = 'completed'
        ORDER BY log_date ASC`,
-      [habitId],
+      [habitId, userId],
     );
     const completedDatesSorted = dateRows.map((r) => r.log_date);
     const currentStreak = computeFrequencyStreak(completedDatesSorted, today, freq);
@@ -149,8 +149,8 @@ export class AnalyticsWorkerService implements OnModuleInit, OnModuleDestroy {
          (COUNT(*) FILTER (WHERE log_date >= CURRENT_DATE - 29)::float / 30.0) AS rate_30d,
          (COUNT(*) FILTER (WHERE log_date >= CURRENT_DATE - 89)::float / 90.0) AS rate_90d
        FROM habit_logs
-       WHERE habit_id = $1 AND status = 'completed'`,
-      [habitId],
+       WHERE habit_id = $1 AND user_id = $2 AND status = 'completed'`,
+      [habitId, userId],
     );
     const { rate_7d = '0', rate_30d = '0', rate_90d = '0' } = rateRow[0] ?? {};
 
@@ -160,9 +160,9 @@ export class AnalyticsWorkerService implements OnModuleInit, OnModuleDestroy {
          MOD(EXTRACT(DOW FROM logged_at AT TIME ZONE $2)::int + 6, 7)::int AS dow,
          COUNT(*)::int AS cnt
        FROM habit_logs
-       WHERE habit_id = $1 AND status = 'completed'
+       WHERE habit_id = $1 AND user_id = $3 AND status = 'completed'
        GROUP BY dow`,
-      [habitId, timezone],
+      [habitId, timezone, userId],
     );
     const completionByWeekday: number[] = new Array(7).fill(0);
     for (const row of weekdayRows) {
@@ -176,9 +176,9 @@ export class AnalyticsWorkerService implements OnModuleInit, OnModuleDestroy {
          EXTRACT(HOUR FROM logged_at AT TIME ZONE $2)::int AS hr,
          COUNT(*)::int AS cnt
        FROM habit_logs
-       WHERE habit_id = $1 AND status = 'completed'
+       WHERE habit_id = $1 AND user_id = $3 AND status = 'completed'
        GROUP BY hr`,
-      [habitId, timezone],
+      [habitId, timezone, userId],
     );
     const completionByHour: number[] = new Array(24).fill(0);
     for (const row of hourRows) {
@@ -192,8 +192,8 @@ export class AnalyticsWorkerService implements OnModuleInit, OnModuleDestroy {
          MAX(logged_at) FILTER (WHERE status = 'completed') AS last_completed,
          MAX(logged_at) FILTER (WHERE status = 'skipped')   AS last_skipped
        FROM habit_logs
-       WHERE habit_id = $1`,
-      [habitId],
+       WHERE habit_id = $1 AND user_id = $2`,
+      [habitId, userId],
     );
     const { last_completed = null, last_skipped = null } = tsRow[0] ?? {};
 

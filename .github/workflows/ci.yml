@@ -90,6 +90,13 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      # Multi-tenant isolation (NFR-038) rests entirely on application-layer
+      # filtering: PostgreSQL RLS is not enabled and the app connects as the
+      # table owner. This fails the build on a query that reads or writes a
+      # user-owned table without naming user_id.
+      - name: Query scoping check
+        run: pnpm --filter backend check:query-scoping
+
       - name: Typecheck
         run: pnpm typecheck
 

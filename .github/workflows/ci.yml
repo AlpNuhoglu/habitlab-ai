@@ -102,6 +102,13 @@ jobs:
       - name: Query scoping check
         run: pnpm --filter backend check:query-scoping
 
+      # The privileged pool is not subject to RLS, and nothing in the type
+      # system separates it from the tenant-scoped one — both are a DataSource.
+      # This holds that boundary: reaching for it outside the documented
+      # cross-tenant subsystems fails the build.
+      - name: Privileged DataSource allowlist
+        run: pnpm --filter backend check:privileged-datasource
+
       - name: Typecheck
         run: pnpm typecheck
 

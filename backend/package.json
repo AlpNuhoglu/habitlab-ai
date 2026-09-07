@@ -12,6 +12,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "lint": "eslint \"src/**/*.ts\" --max-warnings 0",
     "check:query-scoping": "node scripts/check-query-scoping.mjs",
+    "check:privileged-datasource": "node scripts/check-privileged-datasource.mjs",
     "typecheck": "tsc --noEmit",
     "migrate": "typeorm-ts-node-commonjs migration:run -d src/data-source.ts",
     "migrate:create": "typeorm-ts-node-commonjs migration:create",

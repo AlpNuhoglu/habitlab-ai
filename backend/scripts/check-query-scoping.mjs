@@ -48,7 +48,7 @@ const USER_OWNED_TABLES = [
  */
 const ALLOWLIST = new Map([
   [
-    'src/modules/events/outbox-publisher.service.ts:103',
+    'src/modules/events/outbox-publisher.service.ts:141',
     'Marks already-fetched events published by primary key. The outbox drains every tenant by design and the ids come from the rows this transaction just read.',
   ],
 ]);

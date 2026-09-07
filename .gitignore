@@ -49,3 +49,13 @@ coverage-e2e/
 *.lcov
 .aider*
 graphify-out/
+
+# ── Local-only working docs ─────────────────────────────────────────────────
+# Kept out of the repo deliberately. Note this only stops them being committed —
+# it is not an access control, and anyone with the working tree can read them.
+# The spec at docs/HabitLab_AI_Analysis_Report.docx stays tracked; the copy at
+# the repo root does not.
+docs/architecture/
+docs/engineering-guide/
+docs/work-packages/
+/HabitLab_AI_Analysis_Report.docx

@@ -30,7 +30,12 @@ export function setAuthCookies(res: Response, tokens: TokenPair): void {
 }
 
 export function clearAuthCookies(res: Response): void {
-  res.clearCookie('access_token', { httpOnly: true, sameSite: 'strict', secure: IS_PROD, path: '/' });
+  res.clearCookie('access_token', {
+    httpOnly: true,
+    sameSite: 'strict',
+    secure: IS_PROD,
+    path: '/',
+  });
   res.clearCookie('refresh_token', {
     httpOnly: true,
     sameSite: 'strict',

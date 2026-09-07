@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
 import { PRIVILEGED_DATA_SOURCE } from './database.tokens';
+import { RLS_CLIENT_CTOR } from './rls-client';
 
 /**
  * Owns both connection pools (NFR-038).
@@ -20,9 +21,14 @@ import { PRIVILEGED_DATA_SOURCE } from './database.tokens';
  * shows up in the diff.
  */
 function poolExtras(): Record<string, unknown> {
-  // Keep the pool small in test so sequential e2e suites don't exhaust
-  // Postgres max_connections when suites boot/close back-to-back.
-  return process.env['NODE_ENV'] === 'test' ? { max: 3, idleTimeoutMillis: 1000 } : {};
+  return {
+    // Stamps the request's tenant onto the session before every statement, so
+    // RLS policies have an identity to match against.
+    Client: RLS_CLIENT_CTOR,
+    // Keep the pool small in test so sequential e2e suites don't exhaust
+    // Postgres max_connections when suites boot/close back-to-back.
+    ...(process.env['NODE_ENV'] === 'test' ? { max: 3, idleTimeoutMillis: 1000 } : {}),
+  };
 }
 
 @Global()

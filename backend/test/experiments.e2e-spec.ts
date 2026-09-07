@@ -23,6 +23,7 @@ import type { StubBrokerAdapter } from '../src/infrastructure/broker/stub-broker
 import { AnalyticsWorkerService } from '../src/modules/analytics/analytics-worker.service';
 import { AssignmentService } from '../src/modules/experiments/assignment.service';
 import { RecommendationWorkerService } from '../src/modules/recommendations/recommendation-worker.service';
+import { privilegedDataSource } from './helpers/privileged-datasource';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -149,7 +150,7 @@ describe('A/B testing subsystem (e2e)', () => {
     app.use(cookieParser());
     await app.init();
 
-    ds = app.get(DataSource);
+    ds = privilegedDataSource(app);
     stub = app.get(BROKER_ADAPTER) as StubBrokerAdapter;
     assignmentService = app.get(AssignmentService);
   });

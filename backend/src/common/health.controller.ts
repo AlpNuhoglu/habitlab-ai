@@ -6,6 +6,7 @@ import Redis from 'ioredis';
 import { DataSource } from 'typeorm';
 
 import { REDIS_CLIENT } from '../infrastructure/broker/redis-streams-broker.adapter';
+import { PRIVILEGED_DATA_SOURCE } from '../infrastructure/database/database.tokens';
 import { Public } from './decorators/public.decorator';
 
 type CheckResult = 'ok' | 'fail' | 'skip';
@@ -22,7 +23,9 @@ interface ReadyResponse {
 @Controller()
 export class HealthController {
   constructor(
-    private readonly dataSource: DataSource,
+    // Readiness must report on the database itself, not on whether a tenant
+    // happens to be in context — this probe runs with no request identity.
+    @Inject(PRIVILEGED_DATA_SOURCE) private readonly dataSource: DataSource,
     @Inject(REDIS_CLIENT) private readonly redis: Redis | null,
   ) {}
 

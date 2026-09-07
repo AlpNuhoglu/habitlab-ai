@@ -17,6 +17,7 @@ import request from 'supertest';
 import { DataSource } from 'typeorm';
 
 import { AppModule } from '../src/app.module';
+import { privilegedDataSource } from './helpers/privileged-datasource';
 
 // set-cookie is string | string[] | undefined in Node's IncomingMessage.
 function getCookies(res: { headers: Record<string, unknown> }): string[] {
@@ -89,7 +90,7 @@ describe('Auth (e2e)', () => {
 
     expect((res.body as { userId: string }).userId).toBeDefined();
 
-    const ds = app.get(DataSource);
+    const ds = privilegedDataSource(app);
     const rows: Array<{ id: string }> = await ds.query('SELECT id FROM users WHERE email = $1', [
       email('reg1'),
     ]);
@@ -126,7 +127,7 @@ describe('Auth (e2e)', () => {
     // registerAndVerify itself calls /auth/verify and expects 200 — this test
     // additionally confirms the DB column was written.
 
-    const ds = app.get(DataSource);
+    const ds = privilegedDataSource(app);
     const rows: Array<{ email_verified_at: Date | null }> = await ds.query(
       'SELECT email_verified_at FROM users WHERE id = $1',
       [userId],
@@ -247,7 +248,7 @@ describe('Auth (e2e)', () => {
       .set('Cookie', getCookies(loginRes))
       .expect(200);
 
-    const ds = app.get(DataSource);
+    const ds = privilegedDataSource(app);
     const rows: Array<{ id: string; revoked_at: Date | null; replaced_by: string | null }> =
       await ds.query(
         `SELECT id, revoked_at, replaced_by FROM refresh_tokens
@@ -317,7 +318,7 @@ describe('Auth (e2e)', () => {
       .send({ email: email('resetpw'), password: 'Password1' })
       .expect(200);
 
-    const ds = app.get(DataSource);
+    const ds = privilegedDataSource(app);
     const [userRow]: Array<{ password_hash: string }> = await ds.query(
       'SELECT password_hash FROM users WHERE id = $1',
       [userId],

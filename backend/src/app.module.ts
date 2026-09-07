@@ -1,7 +1,6 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { resolve } from 'path';
 
 import { ProblemDetailsFilter } from './common/filters/problem-details.filter';
@@ -9,6 +8,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { AppThrottlerGuard } from './common/throttler/app-throttler.guard';
 import { AppThrottlerModule } from './common/throttler/app-throttler.module';
 import { HealthController } from './common/health.controller';
+import { DatabaseModule } from './infrastructure/database/database.module';
 import { InfrastructureModule } from './infrastructure/infrastructure.module';
 import { HttpLoggingInterceptor } from './infrastructure/logger/http-logging.interceptor';
 import { RequestIdMiddleware } from './infrastructure/logger/request-id.middleware';
@@ -30,22 +30,7 @@ import { RecommendationsModule } from './modules/recommendations/recommendations
       envFilePath: [resolve(__dirname, '../../.env.local'), resolve(__dirname, '../../.env')],
       cache: true,
     }),
-    TypeOrmModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        type: 'postgres' as const,
-        url: config.getOrThrow<string>('DATABASE_URL'),
-        entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        migrations: [__dirname + '/migrations/*{.ts,.js}'],
-        synchronize: false,
-        logging: config.get<string>('NODE_ENV') !== 'production',
-        // Keep the pool small in test so sequential e2e suites don't exhaust
-        // Postgres max_connections when suites boot/close back-to-back.
-        ...(process.env['NODE_ENV'] === 'test'
-          ? { extra: { max: 3, idleTimeoutMillis: 1000 } }
-          : {}),
-      }),
-    }),
+    DatabaseModule,
     InfrastructureModule,
     AppThrottlerModule,
     AuthModule,

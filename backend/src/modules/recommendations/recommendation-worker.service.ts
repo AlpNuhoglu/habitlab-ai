@@ -1,8 +1,9 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectDataSource } from '@nestjs/typeorm';
 import Redis from 'ioredis';
 import { DataSource } from 'typeorm';
+
+import { PRIVILEGED_DATA_SOURCE } from '../../infrastructure/database/database.tokens';
 
 import { OutboxEvent } from '../../infrastructure/broker/broker-adapter.interface';
 import { REDIS_CLIENT } from '../../infrastructure/broker/redis-streams-broker.adapter';
@@ -38,7 +39,8 @@ export class RecommendationWorkerService implements OnModuleInit, OnModuleDestro
   private active = true;
 
   constructor(
-    @InjectDataSource() private readonly dataSource: DataSource,
+    // Consumes the event stream for all users; tenant comes from the event, not a request.
+    @Inject(PRIVILEGED_DATA_SOURCE) private readonly dataSource: DataSource,
     @Inject(CACHE_SERVICE) private readonly cacheService: ICacheService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis | null,
     @Inject(LLM_PROVIDER) private readonly llmProvider: LLMProvider,

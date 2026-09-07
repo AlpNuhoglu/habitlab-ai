@@ -16,6 +16,7 @@ import request from 'supertest';
 import { DataSource } from 'typeorm';
 
 import { AppModule } from '../src/app.module';
+import { privilegedDataSource } from './helpers/privileged-datasource';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -95,7 +96,7 @@ describe('Habits + Tracking + Dashboard (e2e)', () => {
     app.use(cookieParser());
     await app.init();
 
-    ds = app.get(DataSource);
+    ds = privilegedDataSource(app);
   });
 
   afterAll(async () => {

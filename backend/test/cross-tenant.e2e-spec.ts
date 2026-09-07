@@ -25,6 +25,7 @@ import request from 'supertest';
 import { DataSource } from 'typeorm';
 
 import { AppModule } from '../src/app.module';
+import { privilegedDataSource } from './helpers/privileged-datasource';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -108,7 +109,7 @@ describe('Cross-tenant isolation (e2e)', () => {
     app.use(cookieParser());
     await app.init();
 
-    ds = app.get(DataSource);
+    ds = privilegedDataSource(app);
 
     ({ accessCookie: cookieA, userId: userIdA } = await registerLoginAndGetCookie(app, 'a'));
     ({ accessCookie: cookieB, userId: userIdB } = await registerLoginAndGetCookie(app, 'b'));

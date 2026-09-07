@@ -21,6 +21,7 @@ import { AppModule } from '../src/app.module';
 import { BROKER_ADAPTER } from '../src/infrastructure/broker/broker-adapter.interface';
 import type { StubBrokerAdapter } from '../src/infrastructure/broker/stub-broker.adapter';
 import { AnalyticsWorkerService } from '../src/modules/analytics/analytics-worker.service';
+import { privilegedDataSource } from './helpers/privileged-datasource';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -121,7 +122,7 @@ describe('Analytics worker + endpoints (e2e)', () => {
     app.use(cookieParser());
     await app.init();
 
-    ds = app.get(DataSource);
+    ds = privilegedDataSource(app);
     stub = app.get<StubBrokerAdapter>(BROKER_ADAPTER);
   });
 

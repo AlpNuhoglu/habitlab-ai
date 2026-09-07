@@ -1,8 +1,8 @@
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { Inject, Injectable } from '@nestjs/common';
 import { IsNull } from 'typeorm';
-import type { EntityManager, Repository } from 'typeorm';
+import type { DataSource, EntityManager, Repository } from 'typeorm';
 
+import { PRIVILEGED_DATA_SOURCE } from '../../../infrastructure/database/database.tokens';
 import { RefreshToken } from '../entities/refresh-token.entity';
 
 export interface CreateRefreshTokenData {
@@ -15,10 +15,18 @@ export interface CreateRefreshTokenData {
 
 @Injectable()
 export class RefreshTokenRepository {
+  private readonly repo: Repository<RefreshToken>;
+
   constructor(
-    @InjectRepository(RefreshToken)
-    private readonly repo: Repository<RefreshToken>,
-  ) {}
+    // Refresh tokens are authentication infrastructure, not tenant data, and
+    // this repository is unusable on a tenant-scoped pool: findByHash below
+    // deliberately queries without a user_id, and /auth/refresh is @Public()
+    // so no tenant is in context when it runs. Isolation here rests on
+    // presenting the raw token, which is a stronger secret than a user id.
+    @Inject(PRIVILEGED_DATA_SOURCE) dataSource: DataSource,
+  ) {
+    this.repo = dataSource.getRepository(RefreshToken);
+  }
 
   async create(data: CreateRefreshTokenData, em?: EntityManager): Promise<RefreshToken> {
     const repo = em ? em.getRepository(RefreshToken) : this.repo;

@@ -20,6 +20,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { NotificationSchedulerService } from '../src/modules/notifications/notification-scheduler.service';
 import { WebPushService } from '../src/modules/notifications/web-push.service';
+import { privilegedDataSource } from './helpers/privileged-datasource';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -116,7 +117,7 @@ describe('Web push notifications (e2e)', () => {
     app.use(cookieParser());
     await app.init();
 
-    ds = app.get(DataSource);
+    ds = privilegedDataSource(app);
     scheduler = app.get(NotificationSchedulerService);
     webPush = app.get(WebPushService);
   });

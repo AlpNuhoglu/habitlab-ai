@@ -1,7 +1,8 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { InjectDataSource } from '@nestjs/typeorm';
 import Redis from 'ioredis';
 import { DataSource, EntityManager } from 'typeorm';
+
+import { PRIVILEGED_DATA_SOURCE } from '../../infrastructure/database/database.tokens';
 
 import { OutboxEvent } from '../../infrastructure/broker/broker-adapter.interface';
 import { REDIS_CLIENT } from '../../infrastructure/broker/redis-streams-broker.adapter';
@@ -35,7 +36,8 @@ export class AnalyticsWorkerService implements OnModuleInit, OnModuleDestroy {
   private active = true;
 
   constructor(
-    @InjectDataSource() private readonly dataSource: DataSource,
+    // Consumes the event stream for all users; tenant comes from the event, not a request.
+    @Inject(PRIVILEGED_DATA_SOURCE) private readonly dataSource: DataSource,
     @Inject(CACHE_SERVICE) private readonly cacheService: ICacheService,
     // REDIS_CLIENT is null when InfrastructureModule is in stub mode (test / BROKER_ADAPTER=stub).
     // That null is the single source of truth for "don't start the stream consumer".

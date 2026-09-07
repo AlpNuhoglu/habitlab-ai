@@ -1,6 +1,8 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { InjectDataSource } from '@nestjs/typeorm';
+import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+
+import { PRIVILEGED_DATA_SOURCE } from '../../infrastructure/database/database.tokens';
+import { runAsTenant } from '../../infrastructure/database/tenant-context';
 
 import { MetricsService } from '../../infrastructure/metrics/metrics.service';
 import { UserPreferences } from '../auth/entities/user.entity';
@@ -85,7 +87,8 @@ export class NotificationSchedulerService implements OnModuleInit, OnModuleDestr
   private running = false;
 
   constructor(
-    @InjectDataSource() private readonly dataSource: DataSource,
+    // Scans habits joined to users across every tenant on each tick.
+    @Inject(PRIVILEGED_DATA_SOURCE) private readonly dataSource: DataSource,
     private readonly webPushService: WebPushService,
     private readonly pushSubscriptionRepo: PushSubscriptionRepository,
     private readonly notificationSentRepo: NotificationSentRepository,
@@ -144,7 +147,10 @@ export class NotificationSchedulerService implements OnModuleInit, OnModuleDestr
 
     for (const row of habits) {
       try {
-        await this.processHabit(row);
+        // The scan above is cross-tenant, but processing one habit is not:
+        // establish that user's tenant so the user-scoped repositories this
+        // calls resolve on the RLS-bound pool.
+        await runAsTenant(row.user_id, () => this.processHabit(row));
       } catch (err) {
         this.logger.error(
           `Failed to process habit ${row.habit_id} for user ${row.user_id}: ${String(err)}`,

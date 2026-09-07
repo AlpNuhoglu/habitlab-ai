@@ -16,10 +16,15 @@ import type { Repository } from 'typeorm';
  *     another user's rows through any id-parameter endpoint.
  *  3. Code review.
  *
- * There is no database-level backstop: PostgreSQL RLS is not enabled, and the
- * app connects as the table owner (which bypasses RLS policies by default), so
- * application-layer filtering is the only isolation boundary. Enabling RLS is
- * tracked as its own work package.
+ * Since NFR-038 there is also a database-level backstop: PostgreSQL RLS is
+ * enabled and forced on every user-owned table, and the application connects as
+ * `habitlab_app`, a role that is neither superuser nor BYPASSRLS. A query that
+ * forgets its user_id filter now returns zero rows rather than another tenant's.
+ *
+ * That backstop does not make the filters optional. RLS fails closed, so a
+ * missing filter turns a leak into missing data — safer, but still a bug, and
+ * one that surfaces as an empty screen rather than an error. Keep writing the
+ * filter; the database is the second line, not the first.
  */
 export abstract class UserScopedRepository<T extends object> {
   protected abstract readonly repo: Repository<T>;

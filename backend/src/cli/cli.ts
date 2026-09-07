@@ -3,7 +3,9 @@ import 'reflect-metadata';
 
 import * as dotenv from 'dotenv';
 import { resolve } from 'path';
-import { DataSource } from 'typeorm';
+import type { DataSource } from 'typeorm';
+
+import { PRIVILEGED_DATA_SOURCE } from '../infrastructure/database/database.tokens';
 
 // Load env before any NestJS module is imported
 const root = resolve(__dirname, '../..');
@@ -26,7 +28,9 @@ async function run(): Promise<void> {
 
   const app = await NestFactory.createApplicationContext(AppModule, { logger: ['error', 'warn'] });
 
-  const dataSource = app.get(DataSource);
+  // Operator tooling: experiment:analyze reads experiment_assignments across
+  // every tenant, and there is no request identity in a CLI process at all.
+  const dataSource = app.get<DataSource>(PRIVILEGED_DATA_SOURCE);
   const experimentRepo = app.get(ExperimentRepository);
   const commands = new ExperimentCommands(dataSource, experimentRepo);
 

@@ -9,6 +9,7 @@ import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 import * as jwt from 'jsonwebtoken';
 
+import { requestContext } from '../../infrastructure/logger/request-id.middleware';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
 interface AccessTokenPayload {
@@ -49,6 +50,18 @@ export class JwtAuthGuard implements CanActivate {
 
       // Attach user to request so controllers can access it via req.user
       (request as Request & { user: AccessTokenPayload }).user = payload;
+
+      // Bind the verified subject to the ambient request context so the RLS
+      // client can stamp it onto the connection (NFR-038). Sourced only from
+      // the verified JWT — never a header, body or query param.
+      //
+      // Mutating the open store rather than calling requestContext.run() is
+      // required: RequestIdMiddleware's frame is already active, and a nested
+      // run() would end the moment canActivate returns, leaving the handler
+      // with no tenant.
+      const store = requestContext.getStore();
+      if (store) store.userId = payload.sub;
+
       return true;
     } catch (err) {
       if (err instanceof UnauthorizedException) throw err;

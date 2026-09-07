@@ -11,11 +11,11 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { InjectDataSource } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { DataSource, EntityManager } from 'typeorm';
 
 import { AuditService } from '../../infrastructure/audit/audit.service';
+import { PRIVILEGED_DATA_SOURCE } from '../../infrastructure/database/database.tokens';
 import { MAIL_SERVICE, MailService } from '../../infrastructure/mail/mail.service';
 import { TokenPair } from '../../common/helpers/cookie.helper';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -61,7 +61,10 @@ export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
   constructor(
-    @InjectDataSource()
+    // Auth flows run before a tenant exists: register creates the user,
+    // login/verify/refresh/reset all execute on @Public() routes with no JWT.
+    // A tenant-scoped pool would see zero rows on every one of them.
+    @Inject(PRIVILEGED_DATA_SOURCE)
     private readonly dataSource: DataSource,
     @Inject(UserRepository)
     private readonly userRepo: UserRepository,

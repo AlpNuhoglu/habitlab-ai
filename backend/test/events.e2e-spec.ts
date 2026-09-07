@@ -25,6 +25,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { BROKER_ADAPTER } from '../src/infrastructure/broker/broker-adapter.interface';
 import { StubBrokerAdapter } from '../src/infrastructure/broker/stub-broker.adapter';
+import { privilegedDataSource } from './helpers/privileged-datasource';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -105,7 +106,7 @@ describe('Outbox + Broker (e2e)', () => {
     app.use(cookieParser());
     await app.init();
 
-    ds = app.get(DataSource);
+    ds = privilegedDataSource(app);
     stub = app.get<StubBrokerAdapter>(BROKER_ADAPTER);
   });
 

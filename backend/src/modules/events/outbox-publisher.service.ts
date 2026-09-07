@@ -1,5 +1,4 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
 import {
@@ -7,6 +6,7 @@ import {
   BrokerAdapter,
   OutboxEvent,
 } from '../../infrastructure/broker/broker-adapter.interface';
+import { PRIVILEGED_DATA_SOURCE } from '../../infrastructure/database/database.tokens';
 import { MetricsService } from '../../infrastructure/metrics/metrics.service';
 
 const POLL_INTERVAL_MS = 200;
@@ -35,7 +35,8 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
   private inflight: Promise<void> | null = null;
 
   constructor(
-    @InjectDataSource() private readonly dataSource: DataSource,
+    // Drains every tenant's events and runs ensure_events_partition DDL.
+    @Inject(PRIVILEGED_DATA_SOURCE) private readonly dataSource: DataSource,
     @Inject(BROKER_ADAPTER) private readonly broker: BrokerAdapter,
     private readonly metrics: MetricsService,
   ) {}

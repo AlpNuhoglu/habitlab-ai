@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectDataSource } from '@nestjs/typeorm';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+
+import { PRIVILEGED_DATA_SOURCE } from '../database/database.tokens';
 
 export interface AuditEntry {
   userId: string | null;
@@ -17,7 +18,12 @@ export interface AuditEntry {
 export class AuditService {
   private readonly logger = new Logger(AuditService.name);
 
-  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
+  constructor(
+    // Fire-and-forget insert with a nullable user_id (login failures have no
+    // user), and the promise is not awaited — the request context may already
+    // have unwound by the time the query reaches the pool.
+    @Inject(PRIVILEGED_DATA_SOURCE) private readonly dataSource: DataSource,
+  ) {}
 
   log(entry: AuditEntry): void {
     const { userId, actorType = 'user', action, targetType, targetId, details, ipAddress, userAgent } = entry;

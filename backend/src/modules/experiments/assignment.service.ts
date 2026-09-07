@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 
 import { ExperimentVariant } from './entities/experiment.entity';
 import { ExperimentRepository } from './experiment.repository';
+import { runAsTenant } from '../../infrastructure/database/tenant-context';
 
 interface UserPreferencesRow {
   preferences: { experiments_opted_out?: boolean };
@@ -40,9 +41,15 @@ export class AssignmentService {
 
     const variantKey = this.computeVariant(userId, experimentKey, experiment.variants);
 
-    await this.dataSource.transaction(async (em) => {
-      await this.experimentRepo.createAssignment(userId, experiment.id, variantKey, em);
-    });
+    // Assignment reads and writes only this user's row, but callers include
+    // workers and lazily-assigning request paths that may have no tenant in
+    // context. Establish it so the RLS policy on experiment_assignments has an
+    // identity to check the new row against.
+    await runAsTenant(userId, () =>
+      this.dataSource.transaction(async (em) => {
+        await this.experimentRepo.createAssignment(userId, experiment.id, variantKey, em);
+      }),
+    );
 
     return variantKey;
   }
@@ -62,9 +69,15 @@ export class AssignmentService {
 
     const variantKey = this.computeVariant(userId, experimentKey, experiment.variants);
 
-    await this.dataSource.transaction(async (em) => {
-      await this.experimentRepo.createAssignment(userId, experiment.id, variantKey, em);
-    });
+    // Assignment reads and writes only this user's row, but callers include
+    // workers and lazily-assigning request paths that may have no tenant in
+    // context. Establish it so the RLS policy on experiment_assignments has an
+    // identity to check the new row against.
+    await runAsTenant(userId, () =>
+      this.dataSource.transaction(async (em) => {
+        await this.experimentRepo.createAssignment(userId, experiment.id, variantKey, em);
+      }),
+    );
 
     return variantKey;
   }

@@ -121,8 +121,8 @@ export class AnalyticsWorkerService implements OnModuleInit, OnModuleDestroy {
       Array<{ frequency_type: string; weekday_mask: number | null; target_count_per_week: number | null }>
     >(
       `SELECT frequency_type, weekday_mask, target_count_per_week
-       FROM habits WHERE id = $1`,
-      [habitId],
+       FROM habits WHERE id = $1 AND user_id = $2`,
+      [habitId, userId],
     );
     const freq: StreakFrequency = {
       frequencyType: freqRows[0]?.frequency_type ?? 'daily',

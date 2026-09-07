@@ -1,11 +1,17 @@
 /**
  * Cross-tenant isolation tests (NFR-038).
  *
- * PostgreSQL RLS is not enabled and the app connects as the table owner, so
- * application-layer `WHERE user_id = $n` filtering is the only thing keeping one
- * user's rows away from another's. These tests assert that boundary from the
- * outside: user B takes every id-parameter endpoint and points it at user A's
- * resources.
+ * These tests assert the boundary from the outside: user B takes every
+ * id-parameter endpoint and points it at user A's resources.
+ *
+ * They pass whether isolation comes from the application's `WHERE user_id = $n`
+ * filters or from PostgreSQL RLS underneath them, which is the point — this is
+ * the user-visible contract, independent of which layer enforces it. For proof
+ * that the database itself refuses, see rls.e2e-spec.ts.
+ *
+ * The raw `ds` queries below deliberately read another tenant's row to confirm
+ * an attacker changed nothing, so they run on the privileged pool. The isolation
+ * assertions all go through HTTP.
  *
  * A pass means "not found", never "here you go" and never a 500. A 404 (rather
  * than 403) is the intended answer -- it does not confirm the id exists.

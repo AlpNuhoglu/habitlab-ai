@@ -6,7 +6,10 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 
+import { DataSource } from 'typeorm';
+
 import { AppModule } from './app.module';
+import { assertRlsRole } from './infrastructure/database/assert-rls-role';
 import { AppLoggerService } from './infrastructure/logger/app-logger.service';
 
 async function bootstrap(): Promise<void> {
@@ -14,6 +17,9 @@ async function bootstrap(): Promise<void> {
 
   const logger = app.get(AppLoggerService);
   app.useLogger(logger);
+
+  // Before serving a single request: prove the pool cannot bypass RLS.
+  await assertRlsRole(app.get(DataSource));
 
   // Behind a reverse proxy (nginx, Fly, etc.) the client IP is in
   // X-Forwarded-For. Trust the first proxy hop so rate limiting keys on the

@@ -38,7 +38,10 @@ function poolExtras(): Record<string, unknown> {
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         type: 'postgres' as const,
-        url: config.getOrThrow<string>('DATABASE_URL'),
+        // Falls back to DATABASE_URL so a developer who has not re-provisioned
+        // their database still boots; assertRlsRole() in main.ts makes that
+        // fallback loud rather than silent.
+        url: config.get<string>('APP_DATABASE_URL') ?? config.getOrThrow<string>('DATABASE_URL'),
         entities: [__dirname + '/../../**/*.entity{.ts,.js}'],
         migrations: [__dirname + '/../../migrations/*{.ts,.js}'],
         synchronize: false,

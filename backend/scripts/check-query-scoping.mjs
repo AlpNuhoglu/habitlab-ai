@@ -3,10 +3,11 @@
  * Fails the build when a SQL query against a user-owned table does not filter by
  * user_id (NFR-038).
  *
- * PostgreSQL RLS is not enabled and the app connects as the table owner, so
- * application-layer filtering is the only thing keeping one user's rows away
- * from another's. That invariant held across every query at the time this was
- * written; this script is what stops the next one from being the exception.
+ * PostgreSQL RLS now backs these filters (NFR-038), but this check still earns
+ * its place: it catches a missing filter in CI, in seconds, on the diff that
+ * introduces it. RLS catches the same mistake at runtime by returning nothing,
+ * which reads as an empty dashboard rather than an error and can take a long
+ * time to trace back. Cheaper and earlier here.
  *
  * Scope: raw SQL string literals in backend/src (the `dataSource.query()` /
  * `em.query()` style). TypeORM finder calls (`repo.findOne({ where: ... })`) are

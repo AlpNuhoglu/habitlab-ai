@@ -243,6 +243,21 @@ Before touching the database schema, check the analysis report section 5.1 — t
 
 ---
 
+## Row Level Security (NFR-038)
+
+- **Two pools, two roles.** `APP_DATABASE_URL` → `habitlab_app` (NOSUPERUSER, NOBYPASSRLS, owns nothing) backs every HTTP request. `DATABASE_URL` → `habitlab` (owner/superuser) runs migrations and the cross-tenant subsystems. `assertRlsRole()` in `main.ts` refuses to boot if the app pool can bypass RLS — deliberately not gated on `NODE_ENV`, because a regression in CI is exactly when you want to hear about it.
+- **Why role separation came first**: an owner bypasses RLS unless `FORCE` is set, and a **superuser bypasses unconditionally even with FORCE**. Enabling policies as `habitlab` would have listed them in `\d+` while enforcing nothing — worse than no RLS, because every other control would then be trusting a guarantee that isn't there.
+- **Tenant propagation**: `RlsClient` (`infrastructure/database/rls-client.ts`) is installed via TypeORM's `extra.Client` and stamps `set_config('app.current_user_id', …)` **before every statement**. Not on checkout (pg-pool has no hook that fires for warm checkouts) and not on release (a client that errors is returned to no one and reset by nothing). Stamping every time makes a leak structurally impossible. `JwtAuthGuard` mutates the ALS frame `RequestIdMiddleware` already opened — a nested `run()` would end when `canActivate` returns.
+- **`set_config(...)` not `SET LOCAL`**: `SET LOCAL` can't be parameterised, and `is_local=false` is required because many queries run outside any transaction. Transaction-control statements are skipped so an implicit transaction never desyncs TypeORM.
+- **10 policy tables**, not 12. `refresh_tokens` is excluded and *ungranted*: `/auth/refresh` is `@Public()` so no tenant is in context, and `findByHash` reads without `user_id` on purpose for reuse detection (FR-004) — a policy there breaks every session refresh. `audit_log` is excluded because `user_id` is nullable; it is `GRANT INSERT` only, append-only as `InitAuthSchema` always intended. `users` and `experiments` are grants-only (no `user_id` to isolate on).
+- **The `FORCE` trap**: `FORCE` + a policy scoped `TO habitlab_app` leaves the *owner* forced into RLS matching no policy at all → zero rows → every worker silently breaks. Each table therefore carries an explicit `_privileged_bypass` policy `TO habitlab`. Same effect as the default owner bypass, but visible in `\d+` and greppable here. `rls.e2e-spec.ts` has a positive control so deleting it fails loudly.
+- **Partitions**: `events` children show `relrowsecurity = false` — expected, not a bug. Enforcement happens at the parent and covers partitions created later. What blocks a direct `SELECT ... FROM events_2026_09` is the **absence of a grant** (GRANT on a partitioned parent does not cascade), so never add grants inside `ensure_events_partition()`. That function is `SECURITY DEFINER` with `search_path = public, pg_temp` pinned, because `habitlab_app` cannot run `CREATE TABLE` and `OutboxPublisher` swallows the error — a regression would surface as total write failure a month later.
+- **`runAsTenant(userId, fn)`** (`infrastructure/database/tenant-context.ts`) for workers acting on one user's behalf (notification scheduler per habit, `AssignmentService` writes). Preferred over moving those repositories to the privileged pool, which would hand a permanent bypass to code that only ever needs one tenant.
+- **Testing**: `rls.e2e-spec.ts` is the proof — unscoped selects, cross-tenant writes, missing context, partition coverage, and a 60-query pooled-connection leak test. `cross-tenant.e2e-spec.ts` passes either way by design (it tests the user-visible contract), so it can't tell a working policy from an inert one; that's why both exist. Verified by disabling RLS on one table: 6 of the 15 fail.
+- **Deploying this is a credential change in every environment**, not just a migration. `APP_DB_PASSWORD` must be set before `migrate` runs. See `docs/runbooks/rls-role-rotation.md`.
+
+---
+
 ## graphify (scoped to this project)
 
 - **graphify** (`~/.claude/skills/graphify/SKILL.md`) — turns any input into a knowledge graph. Trigger: `/graphify`.

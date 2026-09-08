@@ -1,9 +1,10 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectDataSource } from '@nestjs/typeorm';
 import Redis from 'ioredis';
 import { DataSource } from 'typeorm';
 
-import { PRIVILEGED_DATA_SOURCE } from '../../infrastructure/database/database.tokens';
+import { runAsTenant } from '../../infrastructure/database/tenant-context';
 
 import { OutboxEvent } from '../../infrastructure/broker/broker-adapter.interface';
 import { REDIS_CLIENT } from '../../infrastructure/broker/redis-streams-broker.adapter';
@@ -39,8 +40,9 @@ export class RecommendationWorkerService implements OnModuleInit, OnModuleDestro
   private active = true;
 
   constructor(
-    // Consumes the event stream for all users; tenant comes from the event, not a request.
-    @Inject(PRIVILEGED_DATA_SOURCE) private readonly dataSource: DataSource,
+    // The RLS-bound pool. Each event belongs to exactly one user, so handleEvent
+    // establishes that tenant with runAsTenant() rather than holding a bypass.
+    @InjectDataSource() private readonly dataSource: DataSource,
     @Inject(CACHE_SERVICE) private readonly cacheService: ICacheService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis | null,
     @Inject(LLM_PROVIDER) private readonly llmProvider: LLMProvider,
@@ -75,136 +77,146 @@ export class RecommendationWorkerService implements OnModuleInit, OnModuleDestro
       return;
     }
 
-    // §WP8 — resolve before opening the main transaction; getOrAssignIfActive has its own tx.
-    // try/catch: experiments table may not exist if WP8 migration hasn't been applied yet.
-    let experimentVariant: string | null = null;
-    try {
-      experimentVariant = await this.assignmentService.getOrAssignIfActive(userId, 'rec_copy_v1');
-    } catch (err) {
-      this.logger.warn(`Could not resolve experiment variant for ${userId}: ${String(err)}`);
-    }
-
-    let inserted = false;
-
-    await this.dataSource.transaction(async (em) => {
-      const dedupe = await em.query<Array<{ event_id: string }>>(
-        `INSERT INTO processed_events (event_id, consumer_name)
-         VALUES ($1, $2)
-         ON CONFLICT DO NOTHING
-         RETURNING event_id`,
-        [event.id, CONSUMER_NAME],
-      );
-
-      if (dedupe.length === 0) {
-        this.logger.debug(`Duplicate event ${event.id} — skipping`);
-        return;
+    // Everything below runs as the event's user. AssignmentService is inside the
+    // frame too: it writes experiment_assignments, which RLS isolates by user_id.
+    await runAsTenant(userId, async () => {
+      // §WP8 — resolve before opening the main transaction; getOrAssignIfActive has its own tx.
+      // try/catch: experiments table may not exist if WP8 migration hasn't been applied yet.
+      let experimentVariant: string | null = null;
+      try {
+        experimentVariant = await this.assignmentService.getOrAssignIfActive(userId, 'rec_copy_v1');
+      } catch (err) {
+        this.logger.warn(`Could not resolve experiment variant for ${userId}: ${String(err)}`);
       }
 
-      const analytics = await em.getRepository(HabitAnalytics).findOne({ where: { habitId } });
+      let inserted = false;
 
-      if (!analytics) {
-        this.logger.warn(
-          `No habit_analytics found for habitId ${habitId}, skipping recommendation evaluation`,
+      await this.dataSource.transaction(async (em) => {
+        const dedupe = await em.query<Array<{ event_id: string }>>(
+          `INSERT INTO processed_events (event_id, consumer_name)
+           VALUES ($1, $2)
+           ON CONFLICT DO NOTHING
+           RETURNING event_id`,
+          [event.id, CONSUMER_NAME],
         );
-        return;
-      }
 
-      const habitRows = await em.query<
-        Array<{ difficulty: number; preferred_time: string | null; frequency_type: string; name: string }>
-      >(
-        `SELECT difficulty, preferred_time, frequency_type, name
-         FROM habits
-         WHERE id = $1 AND user_id = $2 AND archived_at IS NULL`,
-        [habitId, userId],
-      );
+        if (dedupe.length === 0) {
+          this.logger.debug(`Duplicate event ${event.id} — skipping`);
+          return;
+        }
 
-      if (!habitRows[0]) return;
+        // Scoped by user_id as well as habit_id. The RLS policy on
+        // habit_analytics now covers this too, but check-query-scoping.mjs only
+        // parses raw SQL, so a TypeORM finder that omits the tenant is invisible
+        // to it — the filter has to be visible here to survive future edits.
+        const analytics = await em
+          .getRepository(HabitAnalytics)
+          .findOne({ where: { habitId, userId } });
 
-      const userRows = await em.query<
-        Array<{ locale: string; ai_recommendations_enabled: boolean }>
-      >(
-        `SELECT locale,
-                (preferences->>'ai_recommendations_enabled')::boolean AS ai_recommendations_enabled
-         FROM users
-         WHERE id = $1`,
-        [userId],
-      );
+        if (!analytics) {
+          this.logger.warn(
+            `No habit_analytics found for habitId ${habitId}, skipping recommendation evaluation`,
+          );
+          return;
+        }
 
-      const locale = userRows[0]?.locale ?? 'en';
-      const aiEnabled = userRows[0]?.ai_recommendations_enabled ?? true;
+        const habitRows = await em.query<
+          Array<{ difficulty: number; preferred_time: string | null; frequency_type: string; name: string }>
+        >(
+          `SELECT difficulty, preferred_time, frequency_type, name
+           FROM habits
+           WHERE id = $1 AND user_id = $2 AND archived_at IS NULL`,
+          [habitId, userId],
+        );
 
-      const recentLogRows = await em.query<
-        Array<{ logDate: string; status: 'completed' | 'skipped' }>
-      >(
-        `SELECT log_date::text AS "logDate", status
-         FROM habit_logs
-         WHERE habit_id = $1 AND user_id = $2
-           AND log_date >= CURRENT_DATE - 7
-         ORDER BY log_date DESC`,
-        [habitId, userId],
-      );
+        if (!habitRows[0]) return;
 
-      const ctx: RuleContext = {
-        userId,
-        habitId,
-        habitConfig: {
-          difficulty: habitRows[0].difficulty,
-          preferredTime: habitRows[0].preferred_time,
-          frequencyType: habitRows[0].frequency_type,
-        },
-        habitAnalytics: analytics,
-        recentLogs: recentLogRows,
-      };
+        const userRows = await em.query<
+          Array<{ locale: string; ai_recommendations_enabled: boolean }>
+        >(
+          `SELECT locale,
+                  (preferences->>'ai_recommendations_enabled')::boolean AS ai_recommendations_enabled
+           FROM users
+           WHERE id = $1`,
+          [userId],
+        );
 
-      const results = this.ruleEngine.evaluate(ctx);
+        const locale = userRows[0]?.locale ?? 'en';
+        const aiEnabled = userRows[0]?.ai_recommendations_enabled ?? true;
 
-      for (const result of results) {
-        const onCooldown = await this.recommendationRepo.hasCooldownActive(
+        const recentLogRows = await em.query<
+          Array<{ logDate: string; status: 'completed' | 'skipped' }>
+        >(
+          `SELECT log_date::text AS "logDate", status
+           FROM habit_logs
+           WHERE habit_id = $1 AND user_id = $2
+             AND log_date >= CURRENT_DATE - 7
+           ORDER BY log_date DESC`,
+          [habitId, userId],
+        );
+
+        const ctx: RuleContext = {
           userId,
           habitId,
-          result.category,
-          em,
-        );
-        if (onCooldown) continue;
+          habitConfig: {
+            difficulty: habitRows[0].difficulty,
+            preferredTime: habitRows[0].preferred_time,
+            frequencyType: habitRows[0].frequency_type,
+          },
+          habitAnalytics: analytics,
+          recentLogs: recentLogRows,
+        };
 
-        const insertData = await this.resolveInsertData(
-          result,
-          analytics,
-          habitRows[0].name,
-          habitRows[0].difficulty,
-          habitRows[0].preferred_time,
-          locale,
-          userId,
-          aiEnabled,
-        );
+        const results = this.ruleEngine.evaluate(ctx);
 
-        await this.recommendationRepo.insert(
-          {
+        for (const result of results) {
+          const onCooldown = await this.recommendationRepo.hasCooldownActive(
             userId,
             habitId,
-            category: result.category,
-            title: result.title,
-            body: insertData.body,
-            priority: result.priority,
-            actionPayload: result.actionPayload ?? null,
-            source: insertData.source,
-            experimentVariant,
-            llmModel: insertData.llmModel,
-            llmTokensInput: insertData.llmTokensInput,
-            llmTokensOutput: insertData.llmTokensOutput,
-            llmCostCents: insertData.llmCostCents,
-          },
-          em,
-        );
-        inserted = true;
-        this.metrics.recommendationsGeneratedTotal.inc({ source: insertData.source });
-        if (insertData.llmCostCents) this.metrics.addLlmCost(insertData.llmCostCents);
+            result.category,
+            em,
+          );
+          if (onCooldown) continue;
+
+          const insertData = await this.resolveInsertData(
+            result,
+            analytics,
+            habitRows[0].name,
+            habitRows[0].difficulty,
+            habitRows[0].preferred_time,
+            locale,
+            userId,
+            aiEnabled,
+          );
+
+          await this.recommendationRepo.insert(
+            {
+              userId,
+              habitId,
+              category: result.category,
+              title: result.title,
+              body: insertData.body,
+              priority: result.priority,
+              actionPayload: result.actionPayload ?? null,
+              source: insertData.source,
+              experimentVariant,
+              llmModel: insertData.llmModel,
+              llmTokensInput: insertData.llmTokensInput,
+              llmTokensOutput: insertData.llmTokensOutput,
+              llmCostCents: insertData.llmCostCents,
+            },
+            em,
+          );
+          inserted = true;
+          this.metrics.recommendationsGeneratedTotal.inc({ source: insertData.source });
+          if (insertData.llmCostCents) this.metrics.addLlmCost(insertData.llmCostCents);
+        }
+      });
+
+      if (inserted) {
+        await this.cacheService.del(CacheKeys.dashboard(userId));
       }
     });
-
-    if (inserted) {
-      await this.cacheService.del(CacheKeys.dashboard(userId));
-    }
   }
 
   // ─── LLM augmentation flow (§6.3.1) ─────────────────────────────────────────

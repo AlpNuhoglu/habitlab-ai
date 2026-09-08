@@ -36,14 +36,6 @@ const ALLOWLIST = new Map([
     'Drains unpublished events for every tenant and runs ensure_events_partition.',
   ],
   [
-    'src/modules/analytics/analytics-worker.service.ts',
-    'Consumes the event stream for all users; the tenant comes from the event, not a request.',
-  ],
-  [
-    'src/modules/recommendations/recommendation-worker.service.ts',
-    'Consumes the event stream for all users; the tenant comes from the event, not a request.',
-  ],
-  [
     'src/modules/notifications/notification-scheduler.service.ts',
     'Scans habits joined to users across every tenant to find what is due; per-habit work runs under runAsTenant.',
   ],

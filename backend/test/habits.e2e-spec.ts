@@ -74,6 +74,23 @@ function todayStr(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC' }).format(new Date());
 }
 
+/**
+ * Pins "today" once for a multi-step flow.
+ *
+ * Calling todayStr() in each step reads the clock again every time, so a run
+ * that crosses UTC midnight between two steps sends two different dates. The
+ * second POST then creates a new log instead of updating the first — or is
+ * rejected outright as a future date — and an expectation of 200 fails. That
+ * is a test artifact, not a product bug: nothing is wrong with a user logging
+ * a habit at 23:59:59.
+ *
+ * Pin in beforeAll and reuse the value across the describe block.
+ */
+function pinToday(): () => string {
+  let pinned: string | null = null;
+  return () => (pinned ??= todayStr());
+}
+
 function daysAgo(n: number): string {
   const d = new Date(todayStr() + 'T00:00:00Z');
   d.setUTCDate(d.getUTCDate() - n);
@@ -269,6 +286,9 @@ describe('Habits + Tracking + Dashboard (e2e)', () => {
   describe('Tracking idempotency', () => {
     let cookie: string;
     let habitId: string;
+    // Both POSTs below must name the same day, even if the run straddles
+    // midnight between them.
+    const today = pinToday();
 
     beforeAll(async () => {
       ({ accessCookie: cookie } = await registerLoginAndGetCookie(app, 'idem1'));
@@ -285,7 +305,7 @@ describe('Habits + Tracking + Dashboard (e2e)', () => {
       await request(app.getHttpServer())
         .post(`/habits/${habitId}/log`)
         .set('Cookie', `access_token=${cookie}`)
-        .send({ status: 'completed', date: todayStr() })
+        .send({ status: 'completed', date: today() })
         .expect(201);
     });
 
@@ -293,7 +313,7 @@ describe('Habits + Tracking + Dashboard (e2e)', () => {
       const res = await request(app.getHttpServer())
         .post(`/habits/${habitId}/log`)
         .set('Cookie', `access_token=${cookie}`)
-        .send({ status: 'skipped', date: todayStr(), note: 'changed my mind' })
+        .send({ status: 'skipped', date: today(), note: 'changed my mind' })
         .expect(200);
 
       const body = res.body as { log: { status: string; note: string } };
@@ -448,6 +468,8 @@ describe('Habits + Tracking + Dashboard (e2e)', () => {
   describe('Delete log', () => {
     let cookie: string;
     let habitId: string;
+    // The POST and the DELETE below must name the same day.
+    const today = pinToday();
 
     beforeAll(async () => {
       ({ accessCookie: cookie } = await registerLoginAndGetCookie(app, 'del1'));
@@ -464,11 +486,11 @@ describe('Habits + Tracking + Dashboard (e2e)', () => {
       await request(app.getHttpServer())
         .post(`/habits/${habitId}/log`)
         .set('Cookie', `access_token=${cookie}`)
-        .send({ status: 'completed', date: todayStr() })
+        .send({ status: 'completed', date: today() })
         .expect(201);
 
       await request(app.getHttpServer())
-        .delete(`/habits/${habitId}/log/${todayStr()}`)
+        .delete(`/habits/${habitId}/log/${today()}`)
         .set('Cookie', `access_token=${cookie}`)
         .expect(204);
     });

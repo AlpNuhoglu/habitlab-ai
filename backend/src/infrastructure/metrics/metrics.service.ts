@@ -52,6 +52,27 @@ export class MetricsService implements OnModuleInit {
     registers: [this.registry],
   });
 
+  // Both counters below watch paths that swallow their error by design, where
+  // the failure is otherwise invisible until something downstream breaks.
+
+  // The audit trail is written fire-and-forget so it can never block the
+  // operation it records. That also means it can stop recording silently.
+  readonly auditWriteFailuresTotal = new Counter({
+    name: 'habitlab_audit_write_failures_total',
+    help: 'Audit log inserts that failed and were dropped',
+    registers: [this.registry],
+  });
+
+  // Partition maintenance is retried daily and must not crash boot, so a
+  // failure only shows up in logs. If it keeps failing, every write in the
+  // system fails once coverage runs out — events are written in the same
+  // transaction as the state change. Alert on any sustained non-zero rate.
+  readonly partitionMaintenanceFailuresTotal = new Counter({
+    name: 'habitlab_partition_maintenance_failures_total',
+    help: 'Failed runs of events partition maintenance',
+    registers: [this.registry],
+  });
+
   // Gauge so it can reflect accumulated cost without requiring a running total query
   readonly llmCostCentsTotal = new Gauge({
     name: 'habitlab_llm_cost_cents_total',

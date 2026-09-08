@@ -79,6 +79,19 @@ function todayStr(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC' }).format(new Date());
 }
 
+/**
+ * Pins "today" once for a flow whose steps must agree on the date.
+ *
+ * Reading the clock in each step lets a run that crosses UTC midnight send two
+ * different dates, so a POST meant to upsert an existing log creates a new one
+ * instead and the expected 200 arrives as a 201. Same helper, same reasoning as
+ * habits.e2e-spec.ts.
+ */
+function pinToday(): () => string {
+  let pinned: string | null = null;
+  return () => (pinned ??= todayStr());
+}
+
 function daysAgo(n: number): string {
   const d = new Date(todayStr() + 'T00:00:00Z');
   d.setUTCDate(d.getUTCDate() - n);
@@ -135,6 +148,9 @@ describe('Analytics worker + endpoints (e2e)', () => {
   describe('AnalyticsWorkerService — habit_analytics recompute', () => {
     let cookie: string;
     let habitId: string;
+    // The idempotency test below expects its POST to upsert the log an earlier
+    // test created, so both must name the same day.
+    const today = pinToday();
 
     beforeAll(async () => {
       ({ accessCookie: cookie } = await registerLoginAndGetCookie(app, 'worker1'));
@@ -154,7 +170,7 @@ describe('Analytics worker + endpoints (e2e)', () => {
       await request(app.getHttpServer())
         .post(`/habits/${habitId}/log`)
         .set('Cookie', `access_token=${cookie}`)
-        .send({ status: 'completed', date: todayStr() })
+        .send({ status: 'completed', date: today() })
         .expect(201);
 
       await drainEventsToWorker(app, stub);
@@ -211,7 +227,7 @@ describe('Analytics worker + endpoints (e2e)', () => {
       const logRes = await request(app.getHttpServer())
         .post(`/habits/${habitId}/log`)
         .set('Cookie', `access_token=${cookie}`)
-        .send({ status: 'completed', date: todayStr() })
+        .send({ status: 'completed', date: today() })
         .expect(200); // 200 = upsert (already logged today)
 
       void logRes; // result not needed

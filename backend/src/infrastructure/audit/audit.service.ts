@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
 import { PRIVILEGED_DATA_SOURCE } from '../database/database.tokens';
+import { MetricsService } from '../metrics/metrics.service';
 
 export interface AuditEntry {
   userId: string | null;
@@ -23,6 +24,7 @@ export class AuditService {
     // user), and the promise is not awaited — the request context may already
     // have unwound by the time the query reaches the pool.
     @Inject(PRIVILEGED_DATA_SOURCE) private readonly dataSource: DataSource,
+    private readonly metrics: MetricsService,
   ) {}
 
   log(entry: AuditEntry): void {
@@ -44,6 +46,9 @@ export class AuditService {
         ],
       )
       .catch((err: unknown) => {
+        // Still swallowed: an audit failure must not break the operation it
+        // records. The counter is what makes the silence visible.
+        this.metrics.auditWriteFailuresTotal.inc();
         this.logger.error(`audit INSERT failed for action=${action}`, String(err));
       });
   }

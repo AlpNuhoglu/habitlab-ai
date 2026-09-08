@@ -92,8 +92,12 @@ export class RlsAppRole1748200000000 implements MigrationInterface {
     );
 
     // Deliberately never granted: refresh_tokens (authentication infrastructure,
-    // read without a user_id for reuse detection), processed_events (worker
-    // idempotency ledger), migrations, and every events_* partition.
+    // read without a user_id for reuse detection), migrations, and every
+    // events_* partition.
+    //
+    // processed_events was withheld here too, while the workers that write it
+    // were privileged. RlsProcessedEventsGrant grants it once those workers
+    // move to runAsTenant() on the app pool.
 
     // ensure_events_partition runs CREATE TABLE, which habitlab_app cannot do.
     // SECURITY DEFINER runs it as the owner instead. Without this the DDL fails

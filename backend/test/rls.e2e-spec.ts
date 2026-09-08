@@ -14,6 +14,8 @@
  * APP_DATABASE_URL pointing at the de-privileged habitlab_app role.
  */
 
+import { randomUUID } from 'crypto';
+
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
@@ -24,6 +26,8 @@ import { DataSource } from 'typeorm';
 
 import { AppModule } from '../src/app.module';
 import { runAsTenant } from '../src/infrastructure/database/tenant-context';
+import { AnalyticsWorkerService } from '../src/modules/analytics/analytics-worker.service';
+import { RecommendationWorkerService } from '../src/modules/recommendations/recommendation-worker.service';
 import { privilegedDataSource } from './helpers/privileged-datasource';
 
 const RUN = Date.now();
@@ -271,6 +275,100 @@ describe('Row level security (e2e)', () => {
         [[habitA, habitB]],
       );
       expect(rows.map((r) => r.id).sort()).toEqual([habitA, habitB].sort());
+    });
+  });
+
+  describe('workers are confined to the tenant on the event', () => {
+    // The analytics and recommendation workers run on the application pool and
+    // establish the tenant from event.userId. A forged event — B's userId
+    // pointing at A's habit — is the shape that would cross tenants if the
+    // worker were still privileged: the habit lookups filter on user_id, so
+    // nothing matches, and the policy backs that up on every write it attempts.
+    it('does not write analytics for a habit belonging to another tenant', async () => {
+      const worker = app.get(AnalyticsWorkerService);
+
+      await worker.handleEvent({
+        id: randomUUID(),
+        userId: userIdB,
+        eventType: 'habit.completed',
+        aggregateType: 'habit',
+        aggregateId: habitA,
+        payload: {},
+        occurredAt: new Date(),
+      });
+
+      // Read privileged: the assertion is about what reached the table, not
+      // about what this connection is allowed to see.
+      const rows = await privDs.query<Array<{ user_id: string }>>(
+        `SELECT user_id FROM habit_analytics WHERE habit_id = $1`,
+        [habitA],
+      );
+      expect(rows.every((r) => r.user_id !== userIdB)).toBe(true);
+    });
+
+    it('does not write recommendations for a habit belonging to another tenant', async () => {
+      const worker = app.get(RecommendationWorkerService);
+      const before = await privDs.query<Array<{ id: string }>>(
+        `SELECT id FROM recommendations WHERE habit_id = $1`,
+        [habitA],
+      );
+
+      await worker.handleEvent({
+        id: randomUUID(),
+        userId: userIdB,
+        eventType: 'habit.completed',
+        aggregateType: 'habit',
+        aggregateId: habitA,
+        payload: {},
+        occurredAt: new Date(),
+      });
+
+      const after = await privDs.query<Array<{ id: string; user_id: string }>>(
+        `SELECT id, user_id FROM recommendations WHERE habit_id = $1`,
+        [habitA],
+      );
+      expect(after).toHaveLength(before.length);
+      expect(after.every((r) => r.user_id !== userIdB)).toBe(true);
+    });
+
+    // The two tests above assert the outcome, which the worker's own user_id
+    // filters are enough to produce — they pass even with the policy disabled.
+    // This one asserts the mechanism: the database refusing a write the worker
+    // could otherwise make, now that it runs on the application pool.
+    it('cannot write habit_analytics attributed to another tenant', async () => {
+      await expect(
+        runAsTenant(userIdB, () =>
+          appDs.query(
+            `INSERT INTO habit_analytics (habit_id, user_id, current_streak, longest_streak)
+             VALUES ($1, $2, 0, 0)`,
+            [habitA, userIdA],
+          ),
+        ),
+      ).rejects.toThrow(/row-level security/i);
+    });
+
+    // Positive control: the same worker, given a truthful event, still works.
+    // Without this, the two tests above would pass just as well if handleEvent
+    // silently did nothing at all.
+    it('still writes analytics when the event names the habit owner', async () => {
+      const worker = app.get(AnalyticsWorkerService);
+
+      await worker.handleEvent({
+        id: randomUUID(),
+        userId: userIdA,
+        eventType: 'habit.completed',
+        aggregateType: 'habit',
+        aggregateId: habitA,
+        payload: {},
+        occurredAt: new Date(),
+      });
+
+      const rows = await privDs.query<Array<{ user_id: string }>>(
+        `SELECT user_id FROM habit_analytics WHERE habit_id = $1`,
+        [habitA],
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.user_id).toBe(userIdA);
     });
   });
 

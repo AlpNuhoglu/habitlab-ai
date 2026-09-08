@@ -1,8 +1,9 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { InjectDataSource } from '@nestjs/typeorm';
 import Redis from 'ioredis';
 import { DataSource, EntityManager } from 'typeorm';
 
-import { PRIVILEGED_DATA_SOURCE } from '../../infrastructure/database/database.tokens';
+import { runAsTenant } from '../../infrastructure/database/tenant-context';
 
 import { OutboxEvent } from '../../infrastructure/broker/broker-adapter.interface';
 import { REDIS_CLIENT } from '../../infrastructure/broker/redis-streams-broker.adapter';
@@ -36,8 +37,9 @@ export class AnalyticsWorkerService implements OnModuleInit, OnModuleDestroy {
   private active = true;
 
   constructor(
-    // Consumes the event stream for all users; tenant comes from the event, not a request.
-    @Inject(PRIVILEGED_DATA_SOURCE) private readonly dataSource: DataSource,
+    // The RLS-bound pool. Each event belongs to exactly one user, so handleEvent
+    // establishes that tenant with runAsTenant() rather than holding a bypass.
+    @InjectDataSource() private readonly dataSource: DataSource,
     @Inject(CACHE_SERVICE) private readonly cacheService: ICacheService,
     // REDIS_CLIENT is null when InfrastructureModule is in stub mode (test / BROKER_ADAPTER=stub).
     // That null is the single source of truth for "don't start the stream consumer".
@@ -69,38 +71,42 @@ export class AnalyticsWorkerService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    let shouldProcess = false;
+    // Everything below runs as the event's user: the recompute reads and writes
+    // only that tenant's rows, so RLS enforces what the queries already assert.
+    await runAsTenant(userId, async () => {
+      let shouldProcess = false;
 
-    await this.dataSource.transaction(async (em) => {
-      // Idempotency: INSERT ON CONFLICT DO NOTHING RETURNING tells us whether the
-      // row was actually inserted. TypeORM em.query() returns result.rows (the array),
-      // so an empty array means conflict (duplicate) and length=1 means inserted.
-      const inserted = await em.query<Array<{ event_id: string }>>(
-        `INSERT INTO processed_events (event_id, consumer_name)
-         VALUES ($1, $2)
-         ON CONFLICT DO NOTHING
-         RETURNING event_id`,
-        [event.id, CONSUMER_NAME],
-      );
+      await this.dataSource.transaction(async (em) => {
+        // Idempotency: INSERT ON CONFLICT DO NOTHING RETURNING tells us whether the
+        // row was actually inserted. TypeORM em.query() returns result.rows (the array),
+        // so an empty array means conflict (duplicate) and length=1 means inserted.
+        const inserted = await em.query<Array<{ event_id: string }>>(
+          `INSERT INTO processed_events (event_id, consumer_name)
+           VALUES ($1, $2)
+           ON CONFLICT DO NOTHING
+           RETURNING event_id`,
+          [event.id, CONSUMER_NAME],
+        );
 
-      if (inserted.length === 0) {
-        this.logger.debug(`Duplicate event ${event.id} — skipping`);
-        return;
+        if (inserted.length === 0) {
+          this.logger.debug(`Duplicate event ${event.id} — skipping`);
+          return;
+        }
+
+        shouldProcess = true;
+        await this.recomputeHabitAnalytics(em, habitId, userId);
+        await this.recomputeUserAnalytics(em, userId);
+      });
+
+      if (shouldProcess) {
+        // DEL after commit — read-through + explicit invalidate (§6.4.2)
+        await Promise.all([
+          this.cacheService.del(CacheKeys.dashboard(userId)),
+          this.cacheService.del(CacheKeys.analyticsHabit(userId, habitId)),
+          this.cacheService.del(CacheKeys.analyticsGlobal(userId)),
+        ]);
       }
-
-      shouldProcess = true;
-      await this.recomputeHabitAnalytics(em, habitId, userId);
-      await this.recomputeUserAnalytics(em, userId);
     });
-
-    if (shouldProcess) {
-      // DEL after commit — read-through + explicit invalidate (§6.4.2)
-      await Promise.all([
-        this.cacheService.del(CacheKeys.dashboard(userId)),
-        this.cacheService.del(CacheKeys.analyticsHabit(userId, habitId)),
-        this.cacheService.del(CacheKeys.analyticsGlobal(userId)),
-      ]);
-    }
   }
 
   // ─── Private: recompute helpers ──────────────────────────────────────────────
@@ -126,10 +132,21 @@ export class AnalyticsWorkerService implements OnModuleInit, OnModuleDestroy {
        FROM habits WHERE id = $1 AND user_id = $2`,
       [habitId, userId],
     );
+
+    // No habit means the event does not describe something this user owns.
+    // Falling through would insert a habit_analytics row from the default
+    // frequency and empty logs below; because the table is keyed on habit_id
+    // alone, that row would then belong to the wrong tenant and block the real
+    // owner's upsert against the policy. Stop instead.
+    if (!freqRows[0]) {
+      this.logger.warn(`habit ${habitId} is not owned by user ${userId} — skipping recompute`);
+      return;
+    }
+
     const freq: StreakFrequency = {
-      frequencyType: freqRows[0]?.frequency_type ?? 'daily',
-      weekdayMask: freqRows[0]?.weekday_mask ?? null,
-      targetCountPerWeek: freqRows[0]?.target_count_per_week ?? null,
+      frequencyType: freqRows[0].frequency_type,
+      weekdayMask: freqRows[0].weekday_mask,
+      targetCountPerWeek: freqRows[0].target_count_per_week,
     };
 
     // Completed dates for streak computation — ::text cast ensures the pg driver

@@ -84,7 +84,10 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
       }
     } catch (err) {
       // Never crash boot: an existing partition usually still covers today,
-      // and the daily retry will pick this up.
+      // and the daily retry will pick this up. The counter is what turns a
+      // persistent failure into something operable — coverage runs out roughly
+      // a month later, and then every write in the system fails at once.
+      this.metrics.partitionMaintenanceFailuresTotal.inc();
       this.logger.error(`Events partition maintenance failed: ${String(err)}`);
     }
   }

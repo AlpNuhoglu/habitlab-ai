@@ -25,6 +25,9 @@ function getUser(req: Request): RequestUser {
   return authed.user;
 }
 
+const MAX_KEYS_PER_REQUEST = 20;
+const EXPERIMENT_KEY_RE = /^[A-Za-z0-9_.-]{1,64}$/;
+
 @ApiTags('experiments')
 @Controller('experiments')
 export class ExperimentsController {
@@ -38,25 +41,38 @@ export class ExperimentsController {
   // FR-072 — variant delivery
   @Get('variant')
   @ApiOperation({ summary: 'Resolve variant assignments for one or more experiment keys (FR-072)' })
-  @ApiQuery({ name: 'keys', description: 'Comma-separated experiment keys' })
+  @ApiQuery({ name: 'keys', type: String, description: 'Comma-separated experiment keys' })
   @ApiResponse({ status: 200, description: 'Map of experimentKey → variantKey' })
   async getVariants(
     @Req() req: Request,
-    @Query('keys') keysParam: string,
+    @Query('keys') keysParam: unknown,
   ): Promise<Record<string, string>> {
     const { sub: userId } = getUser(req);
 
-    if (!keysParam?.trim()) {
+    // `?keys[]=a` arrives as an array, not a string.
+    if (typeof keysParam !== 'string' || !keysParam.trim()) {
       throw new BadRequestException('keys query parameter is required');
     }
 
-    const keys = keysParam
-      .split(',')
-      .map((k) => k.trim())
-      .filter(Boolean);
+    const keys = [
+      ...new Set(
+        keysParam
+          .split(',')
+          .map((k) => k.trim())
+          .filter(Boolean),
+      ),
+    ];
 
     if (keys.length === 0) {
       throw new BadRequestException('keys must contain at least one experiment key');
+    }
+    // Each key costs a lookup, a possible assignment write and an exposure
+    // event, so the list is bounded.
+    if (keys.length > MAX_KEYS_PER_REQUEST) {
+      throw new BadRequestException(`At most ${MAX_KEYS_PER_REQUEST} keys per request`);
+    }
+    if (!keys.every((k) => EXPERIMENT_KEY_RE.test(k))) {
+      throw new BadRequestException('Experiment keys must match [A-Za-z0-9_.-]{1,64}');
     }
 
     const result: Record<string, string> = {};

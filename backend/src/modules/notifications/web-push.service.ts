@@ -2,6 +2,8 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import webpush from 'web-push';
 
+import { isAllowedPushEndpoint } from './push-endpoint';
+
 export interface PushPayload {
   title: string;
   body: string;
@@ -42,6 +44,13 @@ export class WebPushService implements OnModuleInit {
   }
 
   async send(subscription: PushSubscriptionData, payload: PushPayload): Promise<'ok' | 'gone' | 'error'> {
+    // Rows saved before endpoint validation existed are never dialled. 'gone'
+    // makes the scheduler delete them, so the check only fires once per row.
+    if (!isAllowedPushEndpoint(subscription.endpoint)) {
+      this.logger.warn('Refusing push to endpoint outside the push-service allow-list');
+      return 'gone';
+    }
+
     if (!this.enabled) {
       this.logger.debug(`WebPush no-op for endpoint …${subscription.endpoint.slice(-20)}`);
       return 'ok';

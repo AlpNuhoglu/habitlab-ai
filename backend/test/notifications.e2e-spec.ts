@@ -96,7 +96,7 @@ function freezeSchedulerAt(sched: NotificationSchedulerService, hhmm: string): v
 }
 
 function fakeEndpoint(suffix: string): string {
-  return `https://push.example.test/${RUN}/${suffix}`;
+  return `https://fcm.googleapis.com/fcm/send/${RUN}/${suffix}`;
 }
 
 // ─── Suite ───────────────────────────────────────────────────────────────────

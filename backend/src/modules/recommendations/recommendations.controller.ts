@@ -5,6 +5,7 @@ import {
   Inject,
   NotFoundException,
   Param,
+  ParseUUIDPipe,
   Post,
   Req,
   UnauthorizedException,
@@ -46,7 +47,7 @@ export class RecommendationsController {
   @ApiOperation({ summary: 'Dismiss a recommendation (FR-051)' })
   @ApiResponse({ status: 200 })
   @ApiResponse({ status: 404 })
-  async dismiss(@Param('id') id: string, @Req() req: Request) {
+  async dismiss(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     const { sub: userId } = getUser(req);
     try {
       await this.recommendationsService.dismiss(id, userId);
@@ -62,7 +63,7 @@ export class RecommendationsController {
   @ApiOperation({ summary: 'Accept a recommendation (FR-052)' })
   @ApiResponse({ status: 200 })
   @ApiResponse({ status: 404 })
-  async accept(@Param('id') id: string, @Req() req: Request) {
+  async accept(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     const { sub: userId } = getUser(req);
     await this.recommendationsService.accept(id, userId);
     return { success: true };

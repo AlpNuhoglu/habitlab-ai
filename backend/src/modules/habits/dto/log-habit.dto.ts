@@ -1,5 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+
+import { IsCalendarDate } from '../../../common/validation/calendar-date';
 
 import type { HabitLogStatus } from '../entities/habit-log.entity';
 
@@ -14,7 +16,7 @@ export class LogHabitDto {
   })
   @IsOptional()
   @IsString()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'date must be YYYY-MM-DD' })
+  @IsCalendarDate()
   date?: string;
 
   @ApiPropertyOptional({ description: 'Max 500 characters' })

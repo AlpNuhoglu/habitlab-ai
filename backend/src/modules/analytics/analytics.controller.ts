@@ -11,6 +11,7 @@ import {
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 
+import { isCalendarDate } from '../../common/validation/calendar-date';
 import { AnalyticsService } from './analytics.service';
 
 interface RequestUser {
@@ -24,7 +25,6 @@ function getUser(req: Request): RequestUser {
   return authed.user;
 }
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_CALENDAR_DAYS = 365;
 
 @ApiTags('analytics')
@@ -54,8 +54,8 @@ export class AnalyticsController {
   ) {
     const { sub: userId } = getUser(req);
 
-    if (!DATE_RE.test(from) || !DATE_RE.test(to)) {
-      throw new BadRequestException('from and to must be YYYY-MM-DD');
+    if (!isCalendarDate(from) || !isCalendarDate(to)) {
+      throw new BadRequestException('from and to must be real dates in YYYY-MM-DD format');
     }
     if (from > to) {
       throw new BadRequestException('from must be ≤ to');

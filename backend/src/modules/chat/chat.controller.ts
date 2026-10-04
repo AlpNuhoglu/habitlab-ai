@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   Inject,
+  ParseUUIDPipe,
   Post,
   Query,
   Req,
@@ -14,6 +15,7 @@ import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 
+import { ParseBoundedIntPipe } from '../../common/pipes/parse-bounded-int.pipe';
 import { THROTTLE_TIERS } from '../../common/throttler/throttle-tiers';
 import { ChatService } from './chat.service';
 import { ChatHistoryDto, ChatMessageDto } from './dto/chat-message.dto';
@@ -60,12 +62,11 @@ export class ChatController {
   @ApiResponse({ status: 200 })
   async getHistory(
     @Req() req: Request,
-    @Query('limit') limit?: string,
-    @Query('before') before?: string,
+    @Query('limit', new ParseBoundedIntPipe({ min: 1, max: 50, default: 50 })) limit: number,
+    @Query('before', new ParseUUIDPipe({ optional: true })) before?: string,
   ): Promise<ChatHistoryDto> {
     const { sub: userId } = getUser(req);
-    const pageSize = limit ? Math.max(1, parseInt(limit, 10)) : 50;
-    return this.chatService.getHistory(userId, pageSize, before);
+    return this.chatService.getHistory(userId, limit, before);
   }
 
   @Delete('history')

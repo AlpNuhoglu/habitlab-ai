@@ -3,13 +3,16 @@ import type {
   ValidationOptions} from 'class-validator';
 import {
   IsBoolean,
+  IsByteLength,
   IsEmail,
   IsIn,
   IsString,
   Matches,
   MinLength,
-  registerDecorator
+  registerDecorator,
 } from 'class-validator';
+
+import { BCRYPT_MAX_PASSWORD_BYTES } from '../../../common/validation/password-limits';
 
 export function IsIANATimezone(options?: ValidationOptions) {
   return function (object: object, propertyName: string) {
@@ -44,6 +47,9 @@ export class RegisterDto {
   @ApiProperty({ description: 'Min 8 chars, at least 1 letter and 1 digit' })
   @IsString()
   @MinLength(8)
+  @IsByteLength(0, BCRYPT_MAX_PASSWORD_BYTES, {
+    message: `$property must be at most ${BCRYPT_MAX_PASSWORD_BYTES} bytes`,
+  })
   @Matches(/^(?=.*[a-zA-Z])(?=.*\d)/, {
     message: 'password must contain at least 1 letter and 1 digit',
   })

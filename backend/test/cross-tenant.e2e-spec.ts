@@ -149,7 +149,7 @@ describe('Cross-tenant isolation (e2e)', () => {
       .post('/notifications/subscriptions')
       .set(auth(cookieA))
       .send({
-        endpoint: `https://push.example.com/${RUN}-a`,
+        endpoint: `https://fcm.googleapis.com/fcm/send/${RUN}-a`,
         keys: { p256dh: 'BExampleKeyForUserA', auth: 'authSecretA' },
       });
     subscriptionA = (subRes.body as { id: string }).id;

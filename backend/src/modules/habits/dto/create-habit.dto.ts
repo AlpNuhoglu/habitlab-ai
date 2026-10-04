@@ -35,7 +35,9 @@ export class CreateHabitDto {
     description: 'Bit 0=Mon..bit 6=Sun; required when frequencyType=weekly',
     example: 21,
   })
-  @ValidateIf((o: CreateHabitDto) => o.frequencyType === 'weekly')
+  // Validated whenever present, not only when frequencyType names it: on a
+  // PATCH frequencyType is usually absent, which used to skip the check.
+  @ValidateIf((o: CreateHabitDto) => o.frequencyType === 'weekly' || o.weekdayMask != null)
   @IsInt()
   @Min(0)
   @Max(127)
@@ -45,7 +47,7 @@ export class CreateHabitDto {
     description: '1–7; required when frequencyType=custom',
     example: 3,
   })
-  @ValidateIf((o: CreateHabitDto) => o.frequencyType === 'custom')
+  @ValidateIf((o: CreateHabitDto) => o.frequencyType === 'custom' || o.targetCountPerWeek != null)
   @IsInt()
   @Min(1)
   @Max(7)
@@ -54,7 +56,7 @@ export class CreateHabitDto {
   @ApiPropertyOptional({ description: 'HH:MM in user local time', example: '07:00' })
   @IsOptional()
   @IsString()
-  @Matches(/^\d{2}:\d{2}$/, { message: 'preferredTime must be HH:MM' })
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, { message: 'preferredTime must be a valid HH:MM time' })
   preferredTime?: string | null;
 
   @ApiPropertyOptional({ description: '1 (easy) .. 5 (hard)', default: 3 })

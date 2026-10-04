@@ -6,6 +6,7 @@ import {
   HttpCode,
   Inject,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -15,6 +16,9 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
+
+import { ParseBoundedIntPipe } from '../../common/pipes/parse-bounded-int.pipe';
+import { ParseCalendarDatePipe } from '../../common/pipes/parse-calendar-date.pipe';
 
 import { CreateHabitDto } from './dto/create-habit.dto';
 import { LogHabitDto } from './dto/log-habit.dto';
@@ -47,18 +51,17 @@ export class HabitsController {
   @ApiQuery({ name: 'offset', required: false, type: Number })
   list(
     @Req() req: Request,
-    @Query('include_archived') includeArchived?: string,
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
+    @Query('include_archived') includeArchived: string | undefined,
+    @Query('limit', new ParseBoundedIntPipe({ min: 1, max: 200, default: 50 })) limit: number,
+    @Query('offset', new ParseBoundedIntPipe({ min: 0, max: Number.MAX_SAFE_INTEGER, default: 0 }))
+    offset: number,
   ) {
     const { sub: userId } = getUser(req);
-    const parsedLimit = Math.min(parseInt(limit ?? '50', 10) || 50, 200);
-    const parsedOffset = parseInt(offset ?? '0', 10) || 0;
 
     return this.habitsService.listHabits(userId, {
       includeArchived: includeArchived === 'true',
-      limit: parsedLimit,
-      offset: parsedOffset,
+      limit,
+      offset,
     });
   }
 
@@ -79,7 +82,7 @@ export class HabitsController {
   @Get(':id')
   @ApiOperation({ summary: 'Get habit with computed stats (FR-022)' })
   @ApiResponse({ status: 404 })
-  getOne(@Req() req: Request, @Param('id') habitId: string) {
+  getOne(@Req() req: Request, @Param('id', ParseUUIDPipe) habitId: string) {
     const { sub: userId } = getUser(req);
     return this.habitsService.getHabit(userId, habitId);
   }
@@ -88,7 +91,7 @@ export class HabitsController {
 
   @Patch(':id')
   @ApiOperation({ summary: 'Partial update habit (FR-023)' })
-  update(@Req() req: Request, @Param('id') habitId: string, @Body() dto: UpdateHabitDto) {
+  update(@Req() req: Request, @Param('id', ParseUUIDPipe) habitId: string, @Body() dto: UpdateHabitDto) {
     const { sub: userId } = getUser(req);
     return this.habitsService.updateHabit(userId, habitId, dto);
   }
@@ -103,7 +106,7 @@ export class HabitsController {
   @ApiResponse({ status: 409, description: 'HARD_DELETE_LIMIT' })
   async remove(
     @Req() req: Request,
-    @Param('id') habitId: string,
+    @Param('id', ParseUUIDPipe) habitId: string,
     @Query('hard') hard?: string,
   ) {
     const { sub: userId } = getUser(req);
@@ -119,7 +122,7 @@ export class HabitsController {
 
   @Post(':id/unarchive')
   @ApiOperation({ summary: 'Unarchive habit (FR-024)' })
-  unarchive(@Req() req: Request, @Param('id') habitId: string) {
+  unarchive(@Req() req: Request, @Param('id', ParseUUIDPipe) habitId: string) {
     const { sub: userId } = getUser(req);
     return this.habitsService.unarchiveHabit(userId, habitId);
   }
@@ -134,7 +137,7 @@ export class HabitsController {
   async logHabit(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
-    @Param('id') habitId: string,
+    @Param('id', ParseUUIDPipe) habitId: string,
     @Body() dto: LogHabitDto,
   ) {
     const { sub: userId } = getUser(req);
@@ -166,8 +169,8 @@ export class HabitsController {
   @ApiOperation({ summary: 'Remove log for a date (FR-033)' })
   async removeLog(
     @Req() req: Request,
-    @Param('id') habitId: string,
-    @Param('date') logDate: string,
+    @Param('id', ParseUUIDPipe) habitId: string,
+    @Param('date', ParseCalendarDatePipe) logDate: string,
   ) {
     const { sub: userId } = getUser(req);
     const timezone = await this.habitsService.getUserTimezone(userId);
@@ -181,8 +184,8 @@ export class HabitsController {
   @ApiOperation({ summary: 'Edit log note (FR-034)' })
   async updateLogNote(
     @Req() req: Request,
-    @Param('id') habitId: string,
-    @Param('date') logDate: string,
+    @Param('id', ParseUUIDPipe) habitId: string,
+    @Param('date', ParseCalendarDatePipe) logDate: string,
     @Body() dto: UpdateLogDto,
   ) {
     const { sub: userId } = getUser(req);

@@ -74,10 +74,16 @@ async function registerLoginAndGetCookie(
   return { accessCookie, userId };
 }
 
-function currentUTCHHMM(): string {
+// A preferred_time the scheduler is allowed to fire at. Using the wall clock
+// directly made the suite fail whenever CI ran between 22:00 and 07:00 UTC:
+// the frozen clock landed inside the default quiet hours and every tick was
+// skipped (both bounds are inclusive). Mapping into 07:01–21:59 keeps the minute varying between runs, so
+// leftover rows in a shared local database rarely collide.
+function schedulableUTCHHMM(): string {
   const now = new Date();
-  const h = now.getUTCHours().toString().padStart(2, '0');
-  const m = now.getUTCMinutes().toString().padStart(2, '0');
+  const minuteOfDay = 7 * 60 + 1 + ((now.getUTCHours() * 60 + now.getUTCMinutes()) % (14 * 60 + 59));
+  const h = Math.floor(minuteOfDay / 60).toString().padStart(2, '0');
+  const m = (minuteOfDay % 60).toString().padStart(2, '0');
   return `${h}:${m}`;
 }
 
@@ -96,7 +102,7 @@ function freezeSchedulerAt(sched: NotificationSchedulerService, hhmm: string): v
 }
 
 function fakeEndpoint(suffix: string): string {
-  return `https://push.example.test/${RUN}/${suffix}`;
+  return `https://fcm.googleapis.com/fcm/send/${RUN}/${suffix}`;
 }
 
 // ─── Suite ───────────────────────────────────────────────────────────────────
@@ -247,7 +253,7 @@ describe('Web push notifications (e2e)', () => {
       const habitId = (habitRes.body as { id: string }).id;
 
       // Set preferred_time = now (user timezone is UTC)
-      const preferredTime = currentUTCHHMM();
+      const preferredTime = schedulableUTCHHMM();
       await ds.query(`UPDATE habits SET preferred_time = $1 WHERE id = $2`, [
         preferredTime,
         habitId,
@@ -326,7 +332,7 @@ describe('Web push notifications (e2e)', () => {
         .expect(201);
       const habitId = (habitRes.body as { id: string }).id;
 
-      const preferredTime = currentUTCHHMM();
+      const preferredTime = schedulableUTCHHMM();
       await ds.query(`UPDATE habits SET preferred_time = $1 WHERE id = $2`, [
         preferredTime,
         habitId,
@@ -365,7 +371,7 @@ describe('Web push notifications (e2e)', () => {
         .expect(201);
       const habitId = (habitRes.body as { id: string }).id;
 
-      const preferredTime = currentUTCHHMM();
+      const preferredTime = schedulableUTCHHMM();
       await ds.query(`UPDATE habits SET preferred_time = $1 WHERE id = $2`, [
         preferredTime,
         habitId,
@@ -399,7 +405,7 @@ describe('Web push notifications (e2e)', () => {
         .expect(201);
       const habitId = (habitRes.body as { id: string }).id;
 
-      const preferredTime = currentUTCHHMM();
+      const preferredTime = schedulableUTCHHMM();
       await ds.query(`UPDATE habits SET preferred_time = $1 WHERE id = $2`, [
         preferredTime,
         habitId,
@@ -458,7 +464,7 @@ describe('Web push notifications (e2e)', () => {
         .expect(201);
       const habitId = (habitRes.body as { id: string }).id;
 
-      const preferredTime = currentUTCHHMM();
+      const preferredTime = schedulableUTCHHMM();
       await ds.query(`UPDATE habits SET preferred_time = $1 WHERE id = $2`, [
         preferredTime,
         habitId,
@@ -497,7 +503,7 @@ describe('Web push notifications (e2e)', () => {
         .expect(201);
       const habitId = (habitRes.body as { id: string }).id;
 
-      const preferredTime = currentUTCHHMM();
+      const preferredTime = schedulableUTCHHMM();
       await ds.query(`UPDATE habits SET preferred_time = $1 WHERE id = $2`, [
         preferredTime,
         habitId,
